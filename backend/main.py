@@ -6,35 +6,43 @@ import google.generativeai as genai
 from transformers import pipeline
 import os
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template_string
+from flask_cors import CORS
 
 # Load environment variables from .env file
 load_dotenv()
 
 # Set API keys from environment variables
-openai.api_key = os.getenv('OPENAI_API_KEY')
+openai.api_key = os.getenv('OPENAI_API_KEY') 
 anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
 genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
 
 def get_youtube_transcript(video_url):
-    """
-    Fetches the transcript of a YouTube video.
-
-    Args:
-        video_url (str): The URL of the YouTube video.
-
-    Returns:
-        str: The transcript of the video as a single string.
-
-    Raises:
-        ValueError: If there is an error fetching the transcript.
-    """
+    print(f"Attempting to fetch transcript for URL: {video_url}")
     video_id = extract_video_id(video_url)
+    print(f"Extracted video ID: {video_id}")
     try:
         transcript = YouTubeTranscriptApi.get_transcript(video_id)
-        return " ".join([entry['text'] for entry in transcript])
+        full_transcript = " ".join([entry['text'] for entry in transcript])
+        print(f"Successfully fetched transcript. Length: {len(full_transcript)}")
+        
+        # Save transcript with a distinct name
+        save_transcript(video_id, full_transcript)
+        
+        return full_transcript
     except Exception as e:
+        print(f"Error fetching transcript: {str(e)}")
         raise ValueError(f"Error fetching transcript: {str(e)}")
+
+def save_transcript(video_id, transcript):
+    # Create transcripts directory if it doesn't exist
+    os.makedirs('transcripts', exist_ok=True)
+    
+    # Save transcript with video ID as filename
+    filename = f"transcripts/{video_id}.txt"
+    with open(filename, 'w', encoding='utf-8') as f:
+        f.write(transcript)
+    print(f"Transcript saved as {filename}")
 
 def extract_video_id(url):
     """
@@ -49,11 +57,16 @@ def extract_video_id(url):
     Raises:
         ValueError: If the URL is invalid.
     """
-    pattern = r"(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?(.+)"
-    match = re.match(pattern, url)
-    if match:
-        return match.group(1)
-    raise ValueError("Invalid YouTube URL")
+    patterns = [
+        r'(?:v=|\/)([0-9A-Za-z_-]{11}).*',
+        r'(?:embed\/|v\/|youtu.be\/)([0-9A-Za-z_-]{11})',
+        r'^([0-9A-Za-z_-]{11})$'
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+    raise ValueError("Could not extract video ID from URL")
 
 def summarize_transcript(transcript, model="gpt-4"):
     """
@@ -254,48 +267,48 @@ def answer_with_llama(transcript, question):
 
 # Initialize Flask app
 app = Flask(__name__)
+CORS(app, resources={r"/api/*": {"origins": "http://localhost:3000"}})
 
-@app.route('/summarize', methods=['POST'])
-def summarize():
-    """
-    API endpoint to summarize a YouTube video transcript.
-
-    Request JSON format:
-    {
-        "video_url": "string",
-        "model": "string" (optional, default is "gpt-4")
-    }
-
-    Response JSON format:
-    {
-        "summary": "string"
-    }
-    """
+@app.route('/api/transcript', methods=['POST'])
+def get_transcript():
+    print("Received request for transcript")  # Debug log
     data = request.json
-    transcript = get_youtube_transcript(data['video_url'])
-    summary = summarize_transcript(transcript, data.get('model', 'gpt-4'))
+    print(f"Video URL: {data['video_url']}")  # Debug log
+    try:
+        transcript = get_youtube_transcript(data['video_url'])
+        print("Transcript fetched successfully")  # Debug log
+        return jsonify({'transcript': transcript})
+    except Exception as e:
+        print(f"Error: {str(e)}")  # Debug log
+        return jsonify({'error': str(e)}), 500
+
+def generate_summary(transcript, model):
+    if model.startswith("gpt"):
+        return summarize_with_gpt(transcript, model)
+    elif model == "claude":
+        return summarize_with_claude(transcript)
+    elif model == "gemini":
+        return summarize_with_gemini(transcript)
+    elif model == "llama":
+        return summarize_with_llama(transcript)
+    else:
+        raise ValueError(f"Unsupported model: {model}")
+
+@app.route('/api/summarize', methods=['POST'])
+def summarize():
+    data = request.json
+    transcript = data['transcript']
+    model = data.get('model', 'gpt-4')
+    summary = generate_summary(transcript, model)
     return jsonify({'summary': summary})
 
-@app.route('/answer', methods=['POST'])
+@app.route('/api/answer', methods=['POST'])
 def answer():
-    """
-    API endpoint to answer a question based on a YouTube video transcript.
-
-    Request JSON format:
-    {
-        "video_url": "string",
-        "question": "string",
-        "model": "string" (optional, default is "gpt-4")
-    }
-
-    Response JSON format:
-    {
-        "answer": "string"
-    }
-    """
     data = request.json
-    transcript = get_youtube_transcript(data['video_url'])
-    answer = answer_question(transcript, data['question'], data.get('model', 'gpt-4'))
+    transcript = data['transcript']
+    question = data['question']
+    model = data.get('model', 'gpt-4')
+    answer = answer_question(transcript, question, model)
     return jsonify({'answer': answer})
 
 @app.errorhandler(Exception)
@@ -317,6 +330,23 @@ def test():
         JSON response with a success message.
     """
     return jsonify({'message': 'Test successful'})
+
+@app.route('/test-form', methods=['GET', 'POST'])
+def test_form():
+    if request.method == 'POST':
+        video_url = request.form['video_url']
+        try:
+            transcript = get_youtube_transcript(video_url)
+            return jsonify({'transcript': transcript})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    return render_template_string('''
+        <form method="post">
+            <input type="text" name="video_url" placeholder="YouTube URL">
+            <input type="submit" value="Get Transcript">
+        </form>
+    ''')
 
 if __name__ == '__main__':
     # Run the Flask app in debug mode
