@@ -42,3 +42,4 @@
 * handle_exception: Catches all exceptions and returns a JSON response with the error message and a 500 status code.
 * 4. Running the Flask App:
 * The if __name__ == '__main__': block ensures that the Flask app runs in debug mode when the script is executed directly.
+# youtube_app
