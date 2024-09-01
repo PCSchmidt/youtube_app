@@ -8,6 +8,7 @@ import os
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, render_template_string
 from flask_cors import CORS
+import logging
 
 # Load environment variables from .env file
 load_dotenv()
@@ -16,6 +17,12 @@ load_dotenv()
 openai.api_key = os.getenv('OPENAI_API_KEY') 
 anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
 genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
+
+required_env_vars = ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GOOGLE_API_KEY']
+for var in required_env_vars:
+    if not os.getenv(var):
+        logging.error(f"Missing required environment variable: {var}")
+        raise EnvironmentError(f"Missing required environment variable: {var}")
 
 def get_youtube_transcript(video_url):
     print(f"Attempting to fetch transcript for URL: {video_url}")
@@ -267,7 +274,7 @@ def answer_with_llama(transcript, question):
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "http://localhost:3000"}})
+CORS(app)
 
 @app.route('/api/transcript', methods=['POST'])
 def get_transcript():
@@ -313,12 +320,7 @@ def answer():
 
 @app.errorhandler(Exception)
 def handle_exception(e):
-    """
-    Global error handler for the Flask app.
-
-    Returns:
-        JSON response with the error message and a 500 status code.
-    """
+    logging.error(f"An error occurred: {str(e)}")
     return jsonify({'error': str(e)}), 500
 
 @app.route('/test', methods=['GET'])
@@ -348,6 +350,10 @@ def test_form():
         </form>
     ''')
 
+@app.route('/')
+def home():
+    return "Welcome to the YouTube Transcript Analyzer API!"
+
 if __name__ == '__main__':
-    # Run the Flask app in debug mode
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
