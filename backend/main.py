@@ -274,7 +274,7 @@ def answer_with_llama(transcript, question):
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": ["https://youtube-app-x18r.onrender.com", "http://localhost:3000"]}})
 
 @app.route('/api/transcript', methods=['POST'])
 def get_transcript():

@@ -1,7 +1,6 @@
 {
   "name": "youtube-transcript-app",
   "version": "0.1.0",
-  "homepage": "https://PCSchmidt.github.io/youtube-transcript-app",
   "private": true,
   "dependencies": {
     "@emotion/react": "^11.13.3",
@@ -42,5 +41,6 @@
   },
   "devDependencies": {
     "gh-pages": "^6.1.1"
-  }
+  },
+  "homepage": "/"
 }
