@@ -26,14 +26,17 @@ function App() {
   const [answer, setAnswer] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // Use the environment variable for the API URL
+  const API_URL = process.env.REACT_APP_API_URL;
+
   // Function to fetch the transcript of a YouTube video
   const handleGetTranscript = async () => {
     setIsLoading(true);
     try {
-      const transcriptResponse = await axios.post(`${process.env.REACT_APP_API_URL}/api/transcript`, { video_url: videoUrl });
+      const transcriptResponse = await axios.post(`${API_URL}/api/transcript`, { video_url: videoUrl });
       setTranscript(transcriptResponse.data.transcript);
       
-      const summaryResponse = await axios.post(`${process.env.REACT_APP_API_URL}/api/summarize`, { 
+      const summaryResponse = await axios.post(`${API_URL}/api/summarize`, { 
         transcript: transcriptResponse.data.transcript,
         model: model
       });
@@ -49,7 +52,7 @@ function App() {
   const handleAskQuestion = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/answer`, { transcript, question, model });
+      const response = await axios.post(`${API_URL}/api/answer`, { transcript, question, model });
       setAnswer(response.data.answer);
     } catch (error) {
       console.error('Error answering question:', error);
