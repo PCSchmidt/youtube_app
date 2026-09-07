@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "description": "Hand-labeled Stage 2 eval set for the yt_rag RAG pipeline. Queries and gold spans were written by the author directly against the cached fixture transcripts (copied from the read-only legacy/ reference). No YouTube scraping. Every gold_span appears verbatim in its fixture text; gold_chunk_indices are the chunks (pinned 800/150 chunker, yt_rag.chunk) whose text contains the gold span verbatim. Items with absent=true have no answer in the transcript and are used only for the cannot-find/refusal check, excluded from retrieval metrics.",
+  "chunking_at_label_time": {
+    "chunk_size_chars": 800,
+    "overlap_chars": 150
+  },
+  "fixtures": {
+    "teal_chatgpt_linkedin.txt": {
+      "path": "tests/fixtures/teal_chatgpt_linkedin.txt",
+      "sha256": "9a09cdc1022d5aed2a06499a2e8e85fa55eb047a9a231099860d805ef4782bc3",
+      "n_chunks_800_150": 13
+    },
+    "game_dev_ai_paper.txt": {
+      "path": "tests/fixtures/game_dev_ai_paper.txt",
+      "sha256": "c09447a16c856a8745ac0f412c74af7f499262fd94dd54184eabf1c29d31cc21",
+      "n_chunks_800_150": 8
+    }
+  },
+  "items": [
+    {
+      "id": "teal-01",
+      "query": "how do I write a professional summary for my LinkedIn about section with ChatGPT",
+      "fixture": "teal_chatgpt_linkedin.txt",
+      "absent": false,
+      "gold_span": "write a professional summary using my resume for reference include keywords and metrics and keep it less than 100 words",
+      "gold_chunk_indices": [
+        2
+      ]
+    },
+    {
+      "id": "teal-02",
+      "query": "how many characters can a LinkedIn headline be",
+      "fixture": "teal_chatgpt_linkedin.txt",
+      "absent": false,
+      "gold_span": "220 characters is the max limit for your LinkedIn headline",
+      "gold_chunk_indices": [
+        5
+      ]
+    },
+    {
+      "id": "teal-03",
+      "query": "what should the ChatGPT prompt for a new LinkedIn headline include",
+      "fixture": "teal_chatgpt_linkedin.txt",
+      "absent": false,
+      "gold_span": "write a LinkedIn headline using my resume for reference include keywords from my resume and keep it shorter than 220 characters",
+      "gold_chunk_indices": [
+        5
+      ]
+    },
+    {
+      "id": "teal-04",
+      "query": "what prompt do I use to write resume achievements with ChatGPT",
+      "fixture": "teal_chatgpt_linkedin.txt",
+      "absent": false,
+      "gold_span": "right three resume achievements for a marketing coordinator include metrics and keywords",
+      "gold_chunk_indices": [
+        7
+      ]
+    },
+    {
+      "id": "teal-05",
+      "query": "what should I do if ChatGPT invents numbers in my work achievements",
+      "fixture": "teal_chatgpt_linkedin.txt",
+      "absent": false,
+      "gold_span": "it's very unlikely that the success metrics the exact number is going to be accurate to your specific instance",
+      "gold_chunk_indices": [
+        7,
+        8
+      ]
+    },
+    {
+      "id": "teal-06",
+      "query": "what does a good thank you message to a hiring manager include",
+      "fixture": "teal_chatgpt_linkedin.txt",
+      "absent": false,
+      "gold_span": "we always want to thank them for their time and consideration and the opportunity",
+      "gold_chunk_indices": [
+        10
+      ]
+    },
+    {
+      "id": "teal-07",
+      "query": "what are the areas of a LinkedIn profile that matter for a complete profile",
+      "fixture": "teal_chatgpt_linkedin.txt",
+      "absent": false,
+      "gold_span": "one important for a complete profile two the areas that will help your profile show up in search results and three getting in good information that a hiring manager",
+      "gold_chunk_indices": [
+        0
+      ]
+    },
+    {
+      "id": "teal-08",
+      "query": "where does the video say to save the ChatGPT results for later",
+      "fixture": "teal_chatgpt_linkedin.txt",
+      "absent": false,
+      "gold_span": "we're here on our LinkedIn job tracker we're going to fly out the notes area",
+      "gold_chunk_indices": [
+        11
+      ]
+    },
+    {
+      "id": "teal-09",
+      "query": "how much does the teal Chrome extension cost",
+      "fixture": "teal_chatgpt_linkedin.txt",
+      "absent": true,
+      "gold_span": null,
+      "gold_chunk_indices": []
+    },
+    {
+      "id": "teal-10",
+      "query": "who is the CEO of LinkedIn",
+      "fixture": "teal_chatgpt_linkedin.txt",
+      "absent": true,
+      "gold_span": null,
+      "gold_chunk_indices": []
+    },
+    {
+      "id": "gd-01",
+      "query": "what engine powers the 2024 neural network version of Doom",
+      "fixture": "game_dev_ai_paper.txt",
+      "absent": false,
+      "gold_span": "the world's first entirely neural network based game engine",
+      "gold_chunk_indices": [
+        0
+      ]
+    },
+    {
+      "id": "gd-02",
+      "query": "how did the original Doom render its 3D graphics",
+      "fixture": "game_dev_ai_paper.txt",
+      "absent": false,
+      "gold_span": "the enemies and objects are actually just 2D Sprites rendered at fixed angles",
+      "gold_chunk_indices": [
+        1
+      ]
+    },
+    {
+      "id": "gd-03",
+      "query": "what challenge does the small context window of the GameNGen model cause",
+      "fixture": "game_dev_ai_paper.txt",
+      "absent": false,
+      "gold_span": "their biggest challenge was addressing Auto regressive drift where the quality of gameplay starts to decrease over longer sequences",
+      "gold_chunk_indices": [
+        4
+      ]
+    },
+    {
+      "id": "gd-04",
+      "query": "what real world application is this simulation technology heading toward",
+      "fixture": "game_dev_ai_paper.txt",
+      "absent": false,
+      "gold_span": "the real world changing application of Technology like this is going to come in robotics real-time environment simulation will allow robots to train rapidly without physical Hardware",
+      "gold_chunk_indices": [
+        5
+      ]
+    }
+  ]
+}

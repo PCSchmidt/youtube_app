@@ -5,7 +5,7 @@ else
     VENV_PY := .venv/bin/python
 endif
 
-.PHONY: setup test lint format clean
+.PHONY: setup test lint format eval clean
 
 setup:
 	python -m venv .venv
@@ -23,6 +23,12 @@ lint:
 
 format:
 	$(VENV_PY) -m ruff format .
+
+# Stage 2 evaluation. NOT part of `make test`: `make eval` may download the
+# pinned MiniLM weights on first use (network) and, if OPENAI_COMPATIBLE_API_KEY
+# is set, also records qualitative LLM notes. Run records land in experiments/runs/.
+eval:
+	$(VENV_PY) -m yt_rag.eval --embedder both --llm-notes
 
 clean:
 	rm -rf .venv .pytest_cache .ruff_cache dist build *.egg-info
