@@ -134,6 +134,13 @@ How to read this:
   boundaries can split a speaker turn.
 - youtube-transcript-api depends on YouTube's transcript availability; videos
   without captions cannot be ingested.
+- **Stage 5 observability is local and shallow, and its retrieval-quality
+  signal is a PROXY.** Metrics are in-process counters that reset on restart;
+  there is no metrics store, no Prometheus/Grafana, and no alerting. The
+  "retrieval-quality proxy" (empty-result rate, top score) shows whether
+  retrieval returned anything and how confident the vector search was — it is
+  not answer quality. Stage 2 groundedness remains a stub and the qualitative
+  LLM review is still open; nothing here relabels that.
 - Requires Python 3.12 or newer (the pinned lock resolved numpy 2.5.3, which
 dropped support for 3.11; `pyproject.toml` and CI were updated to match).
 
@@ -279,6 +286,11 @@ there, not a second specification.
 **`GET /health`** — liveness probe. No request body. Returns 200
 `{"status": "ok"}`. The Docker healthcheck hits this endpoint.
 
+**`GET /metrics`** (Stage 5) — in-process observability counters as JSON; see
+"Observability (Stage 5)" below. The counters live in the serving process only
+and reset on restart; `/health` and `/metrics` themselves are logged but not
+counted.
+
 **`POST /chat`** — runs the whole pipeline per request: ingest -> chunk ->
 embed -> index -> retrieve top-k -> generate from the retrieved chunks only
 (default in-container path: `HashEmbedder` + `StubProvider`, i.e. the answer is
@@ -328,6 +340,69 @@ Status codes:
   if a real provider is injected and the upstream call fails, that surfaces as
   500 (`GenerationError` is deliberately not mapped to a 4xx: the request was
   valid, the server-side dependency failed).
+
+### Observability (Stage 5 — local, in-process; NOT production monitoring)
+
+Stage 5 adds two additive signals to the same compose-local service. No new
+dependencies (stdlib `logging` + FastAPI), no extra containers, no Grafana.
+
+**Structured JSON logs (stdout, one object per line).** Every `/chat` request
+emits one line; `/health` and `/metrics` emit minimal lines. Example:
+
+```json
+{"ts": "2026-09-07T20:27:42.224+00:00", "level": "INFO", "request_id": "7ac06d1b43f5",
+ "endpoint": "/chat", "status": 200, "total_ms": 2.86, "retrieval_ms": 0.06,
+ "generation_ms": 0.0, "error_class": null, "question_chars": 8,
+ "retrieved_count": 4, "top_score": 0.0, "empty_result": false}
+```
+
+Fields: `request_id` (random, opaque), `endpoint`, `status`, `total_ms`,
+`retrieval_ms` / `generation_ms` (measured separately around retrieve vs
+generate in `RAGPipeline.ask`), `error_class` (exception type name, e.g.
+`IngestError` for a 422), and the retrieval proxy fields `retrieved_count`,
+`top_score` (best cosine score, rounded), `empty_result`. **No secrets and no
+content in logs**: API keys are never read by the logging path, and the
+question, answer, and retrieved text are never logged — only
+counts/scores/ids/timings (`question_chars` is a length, not the question).
+
+**`GET /metrics` (JSON, in-process).** Returns request count, error count /
+rate / classes, latency summaries (`count`, `mean`, `p50`, `p95`, `max` for
+total, retrieval, and generation), and the retrieval-quality proxy. Counters
+are plain process memory: **they reset on restart**, cover `/chat` traffic
+only, and are not shared across workers. There is deliberately no metrics
+store, scrape interval, retention, or alerting — this documents what a
+reviewer can see by curling the running container, nothing more.
+
+**Retrieval-quality PROXY (label it exactly that).** `empty_result_count` /
+`empty_result_rate` (requests where retrieval returned 0 chunks) and
+`mean_top_score` (mean best cosine score). These are **proxies for retrieval
+health, not quality measures**: a nonzero retrieval with a low top score says
+the vector search found nothing similar; it says nothing about answer
+correctness. Stage 2's groundedness metric is a STUB and the qualitative LLM
+review is open — Stage 5 does not change or relabel either.
+
+**What could degrade, and the signal that would show it:**
+
+| Degradation | Signal in logs / metrics |
+| --- | --- |
+| Transcript format / API changes (youtube-transcript-api breaks, captions removed) | `/chat` 422 with `error_class: "IngestError"` rising in `error_classes` and `error_rate` |
+| Embedding-model drift (pinned model re-uploaded upstream, local cache vs fresh download differ) | `top_score` / `mean_top_score` sliding down with no code change; no hard error |
+| Index staleness (index built with a different chunk config or embedder than the serving pipeline's current config) | low `top_score` across requests, or a `BundleError`/`ValueError` on load (`error_class` 400s); bundle identity validation is the stronger guard (Stage 3) |
+| Empty retrieval | `empty_result: true` lines; `empty_result_count` / `empty_result_rate` in `/metrics` |
+| Stub vs real LLM behavior differences | stub cannot fail or refuse; a real provider failure surfaces as `error_class: "GenerationError"` with a 500 — watch `error_rate` and `generation_ms` |
+
+**Compose verification (branch `stage5`).** Because `src/yt_rag/app.py`
+changed, the image was rebuilt (`docker compose build`, ~15 s with cached
+layers) and the service exercised with real curls: `/health` 200, `/chat` 200
+(fixture-backed), `/metrics` JSON (`request_count`, latency summaries, proxy),
+a no-source `/chat` returning 422 with `error_class: "IngestError"` in both the
+log line and `error_classes`, then `docker compose down`.
+
+**Scope honesty:** this is observability of a local Docker Compose service on
+committed fixture transcripts. It is not production monitoring: no dashboards,
+no alerting, no multi-process aggregation, no history across restarts. The
+optional Prometheus/Grafana dashboard roadmap item is left unchecked — nothing
+was stood up.
 
 ### Deploy target decision (Stage 4)
 

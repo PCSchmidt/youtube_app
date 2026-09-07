@@ -80,10 +80,19 @@ audit found three optional variables and no hardcoded secrets.
 
 ## Stage 5 - Monitor
 
-- [ ] Structured logging of requests, retrieval latency, and generation latency.
-- [ ] Metrics endpoint exposing: request count, latency percentiles, error rate, retrieval quality proxy (e.g., empty-result rate).
+- [x] Structured logging of requests, retrieval latency, and generation latency.
+- [x] Metrics endpoint exposing: request count, latency percentiles, error rate, retrieval quality proxy (e.g., empty-result rate).
 - [ ] Optional: Prometheus/Grafana dashboard.
-- [ ] Document "what could degrade" (e.g., transcript format changes, embedding model drift, index staleness).
+- [x] Document "what could degrade" (e.g., transcript format changes, embedding model drift, index staleness).
+
+Stage 5 note (scope and honesty): observability is local and in-process — one
+JSON log line per request (stdlib logging, stdout) and a `GET /metrics`
+endpoint of plain process counters that reset on restart. The retrieval-quality
+signal is a PROXY (empty-result rate, top score), not a quality measure:
+Stage 2 groundedness is still a stub and the qualitative LLM review is still
+open. No new dependencies, no extra containers, no dashboards, no alerting;
+the optional Prometheus/Grafana box is left unchecked because nothing was
+stood up.
 
 **Acceptance:** A reviewer can see how the app is observed and what signals would indicate a problem.
 

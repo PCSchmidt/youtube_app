@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from yt_rag.bundle import embedder_model_id
@@ -36,6 +37,9 @@ class RAGPipeline:
         self.artifacts_dir = Path(artifacts_dir or ARTIFACTS_DIR)
         self.store: FaissVectorStore | None = None
         self.retriever: Retriever | None = None
+        # Stage 5: per-ask latencies (seconds), read by the serving layer for
+        # its structured logs and /metrics. Reset on every ask() call.
+        self.last_timings: dict[str, float] = {}
 
     # --- ingest -------------------------------------------------------------
     def ingest_transcript(self, transcript: Transcript) -> list[Chunk]:
@@ -100,8 +104,13 @@ class RAGPipeline:
 
     def ask(self, question: str) -> dict:
         """Retrieve top-k chunks and generate an answer grounded in them."""
+        started = time.perf_counter()
         retrieved = self.retrieve(question)
+        retrieval_s = time.perf_counter() - started
+        gen_started = time.perf_counter()
         answer = self.provider.generate(question, retrieved)
+        generation_s = time.perf_counter() - gen_started
+        self.last_timings = {"retrieval_s": retrieval_s, "generation_s": generation_s}
         return {
             "question": question,
             "answer": answer,
