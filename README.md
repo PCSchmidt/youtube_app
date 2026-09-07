@@ -72,25 +72,62 @@ embedding, indexing, retrieval, and generation offline.
 
 ## Results
 
-Not measured yet. The Stage 1 pipeline is functionally complete and verified by
-58 offline tests plus a manual end-to-end run of the real model path, but no
-retrieval- or generation-quality numbers exist yet.
+Stage 2 pre-tuning baselines, measured on a **14-item hand-labeled eval set**
+(12 answerable items with a gold span literally present in the fixture
+transcript, plus 2 items whose answer is absent from the transcript) over the
+two cached fixture transcripts. Gold chunk indices are the chunks (pinned
+800/150 chunker) containing the gold span verbatim. The set is small and labeled
+by the project author, so read these as baselines to improve on, not benchmarks.
+Full run records: `experiments/runs/`; log: `experiments/baseline_log.md`;
+reproduce with `make eval` (commit `ceb5ecf`, 2026-09-07).
 
-Evaluation (hit rate, mean reciprocal rank, faithfulness) is **Stage 2** of the
-roadmap and comes before any tuning. No quality claims should be inferred from
-this section.
+| Embedder | hit rate@4 | MRR@4 | Groundedness (lexical) | Notes |
+| --- | --- | --- | --- | --- |
+| all-MiniLM-L6-v2 (pinned) | 0.917 (11/12) | 0.653 | 0.907 (STUB) | quality baseline |
+| HashEmbedder | 0.917 (11/12) | 0.660 | 0.905 (STUB) | deterministic smoke, **NOT a quality measure** |
+
+How to read this:
+
+- **hit rate@4** is the fraction of the 12 answerable queries whose top-4
+  retrieved chunks include a gold chunk; **MRR@4** is the mean reciprocal rank
+  of the first gold chunk. The two runs retrieve different chunk lists per
+  query; the equal hit rates are a coincidence at this sample size.
+- **Groundedness is STUB**, and both runs used `StubProvider` for generation.
+  The stub is extractive — it echoes retrieved sentences — so high lexical
+  overlap with retrieved chunks is expected by construction. It measures that
+  answers are built from retrieved text, not that an LLM answers well.
+- **Refusal on the 2 absent-answer questions is 0.0** in both runs:
+  `StubProvider` cannot say "cannot find it in the transcript". Measuring
+  refusal requires an LLM provider.
+- **No qualitative LLM review was run**: `OPENAI_COMPATIBLE_API_KEY` was not
+  set on the eval machine. `make eval` records qualitative LLM notes
+  automatically when the key is present.
+- **These are pre-tuning baselines.** Chunk size/overlap (800/150), top-k (4),
+  similarity metric (cosine via IndexFlatIP), and the embedding model are the
+  Stage 1 values, unchanged. No tuning has happened yet.
 
 ## Limitations
 
-- **No evaluation yet.** Retrieval metrics (hit rate, MRR) and generation
-  metrics (faithfulness/groundedness) are Stage 2. Nothing in this repo has
-  been measured for quality.
-- The default test path uses `HashEmbedder`, a hashed bag-of-words stand-in.
-  It is deterministic but **not semantically meaningful**; it exists so tests
-  stay offline. Retrieval quality with `HashEmbedder` says nothing about
-  quality with the real model.
-- `StubProvider` is not an LLM. It echoes the top retrieved passage so the
-  grounded pipeline can be exercised without keys or network.
+- **The eval set is small (14 items) and hand-labeled by the project author.**
+  It covers only the two cached fixture transcripts, and 12 of those items are
+  scoreable. A 0.917 hit rate@4 means one miss; the confidence interval on a
+  12-item denominator is wide. Gold chunk relevance is defined as "chunk text
+  contains the gold span verbatim", which is narrow.
+- **The HashEmbedder CI run is not a quality signal.** It is a deterministic
+  bag-of-words hash, not semantically meaningful; it exists so `make test`
+  stays offline and the eval harness is exercised deterministically. Its
+  baseline numbers are recorded for reproducibility only.
+- **Stub groundedness is not LLM quality.** All groundedness numbers above were
+  produced by `StubProvider`, an extractive stub that echoes retrieved
+  passages. They show the answer is built from retrieved text, nothing more.
+- **No tuning has happened yet.** Every number in Results is a pre-tuning
+  baseline of the Stage 1 pipeline unchanged (800/150, k=4, cosine,
+  all-MiniLM-L6-v2). No optimization informed these numbers, and none has been
+  done since.
+- **No qualitative LLM review yet.** The eval machine had no
+  `OPENAI_COMPATIBLE_API_KEY`, so generation quality was not reviewed by a real
+  LLM, and the cannot-find-it refusal rate could not be measured (the stub
+  cannot refuse).
 - Retrieval is exact flat search (O(n) per query) over one transcript; it is
   not scaled for many-document corpora.
 - Transcripts are plain text with no speaker or timestamp structure; chunk
@@ -114,6 +151,12 @@ make test
 from `requirements-lock.txt`, and installs the package editable. `make test`
 runs pytest and ruff. `make lint` additionally checks formatting. Do not commit
 secrets or API keys; configuration is environment-based by policy.
+
+`make eval` runs the Stage 2 evaluation harness and is **not** part of
+`make test`: it may download the pinned MiniLM weights on first use (network),
+and if `OPENAI_COMPATIBLE_API_KEY` is set it also records qualitative LLM
+notes. It writes one JSON run record per embedder under `experiments/runs/`
+against the labeled set in `experiments/eval_set.json`.
 
 One offline query end to end (no keys, no network, uses a fixture transcript):
 

@@ -31,10 +31,10 @@ A reviewer can clone this repo, run one command, and see a working RAG app with 
 
 ## Stage 2 - Evaluate (before optimizing)
 
-- [ ] Build a small labeled eval set (queries + expected relevant chunks/answers).
-- [ ] Retrieval metrics: hit rate, mean reciprocal rank (MRR).
+- [x] Build a small labeled eval set (queries + expected relevant chunks/answers).
+- [x] Retrieval metrics: hit rate, mean reciprocal rank (MRR).
 - [ ] Generation metrics: faithfulness/groundedness check, plus a qualitative review.
-- [ ] Record baseline numbers in an `experiments/` run log with date, config, and results.
+- [x] Record baseline numbers in an `experiments/` run log with date, config, and results.
 
 **Acceptance:** Baseline metrics are recorded and reproducible. No tuning happens before this.
 
