@@ -404,6 +404,64 @@ no alerting, no multi-process aggregation, no history across restarts. The
 optional Prometheus/Grafana dashboard roadmap item is left unchecked — nothing
 was stood up.
 
+### Maintain (Stage 6 — CLI-side; the serving layer is unchanged)
+
+The maintain loop is on-demand and offline, run by hand from the repo root. There is
+deliberately **no scheduler, no cron, no CI job**: nothing refreshes or rolls back
+automatically, and nothing pages anyone — this is a portfolio maintain drill, not
+production MLOps. `yt_rag.app` (and therefore the Docker image and compose) is
+**unchanged** from Stage 5: the serving layer still ingests per request and does not read
+the maintain pointer, so no image rebuild was needed or done. The pointer and bundles
+live under the gitignored `artifacts/` directory.
+
+**Refresh** — re-ingest a transcript, re-embed, and rebuild the FAISS index into a NEW
+versioned bundle (previous bundles are never overwritten in place), then move the
+`artifacts/CURRENT` pointer at it:
+
+```
+python -m yt_rag.maintain --fixture tests/fixtures/teal_chatgpt_linkedin.txt --label v1 \
+    --question "how do I optimize my LinkedIn profile with ChatGPT"
+# stderr: refreshed: new current bundle .../artifacts/v1-20260907T212022Z
+```
+
+`--question` is an optional smoke test: it loads the new bundle through the Stage 3
+identity validation and answers a query. Without `--real-embedder` this uses the
+deterministic HashEmbedder (fully offline). With `--real-embedder` the rebuild uses the
+pinned MiniLM model — that variant is optional AND networked (downloads weights on first
+use). `--rollback <name-or-prefix>` and `--list` are the other commands; `--rollback v1`
+matches a unique bundle-name prefix and fails loudly on an ambiguous one.
+
+**Rollback** — validate first, then move the pointer:
+
+```
+python -m yt_rag.maintain --rollback v1 --question "..."
+# stderr: rolled back: current bundle is now .../artifacts/v1-20260907T212022Z
+```
+
+The Stage 3 identity validation (`load_bundle`: embedder `model_id` + `dim` against the
+manifest) runs **before** the pointer moves. A failed validation (embedder mismatch,
+missing files) raises `BundleError` and leaves the pointer untouched — a bundle you
+cannot reload can never become current. Tests cover this:
+`tests/test_maintain.py::test_rollback_identity_mismatch_leaves_pointer_untouched`.
+
+**Incident runbook (all offline, all executable).** One full write-up with verbatim
+outputs: `experiments/incident.md` (bad fixture refresh -> detected via the Stage 5
+top-score proxy -> rollback to v1 -> grounded query restored).
+
+| Incident | Symptom (offline signals) | Runbook action |
+| --- | --- | --- |
+| **Empty results** (Stage 5 empty-result PROXY signal) | `empty_result: true` log line; `empty_result_count`/`empty_result_rate` in `/metrics` — retrieval returned 0 chunks (per-request serving: an empty/unchunkable transcript) | Serving builds per request, so there is no stale index to refresh; fix the source transcript, then rebuild a clean bundle if you want one on disk: `python -m yt_rag.maintain --fixture <good.txt> --label v<N>` |
+| **Slow retrieval** | `retrieval_ms` / `p95` fields in the `/chat` log line and `/metrics` latency summaries climbing | Flat index is O(n) per query; at fixture scale this is microseconds. Re-check what changed (corpus size, machine load). Rollback is not a latency tool, but `python -m yt_rag.maintain --list` confirms which bundle is current before comparing builds |
+| **Ingest failure: missing file** | `python -m yt_rag.maintain --fixture tests/fixtures/missing_file.txt` -> `error: IngestError: Transcript file not found: ...`, exit code 1, pointer untouched (refresh failed before any bundle was written) | Point `--fixture` at a file that exists (committed fixtures: `tests/fixtures/*.txt`); over HTTP this is the documented 422 with `error_class: "IngestError"` |
+| **Ingest/API failure (422)** | `/chat` 422 with `error_class: "IngestError"` (no `url`/`file`, bad URL, captions removed, network fetch failure) rising in `/metrics` `error_classes` | Serving maps `IngestError` to 422 (Stage 4 doc). Fix the source or the request body. The maintain CLI is not affected — it reads local fixture files, never YouTube (unless `--url` in `yt_rag.cli`, which is networked) |
+| **BundleError on embedder mismatch** | `error: BundleError: bundle was built with model_id '...', but the expected embedder is '...'` — a rollback or reload refuses the bundle; pointer untouched | Rebuild with the bundle's embedder: `python -m yt_rag.maintain --fixture <same.txt> --real-embedder --label v<N>` (networked, optional) — or roll back to a bundle that matches the current embedder: `python -m yt_rag.maintain --rollback v<good-N>` |
+
+**Known limitation (stated, not hidden):** the refresh path validates that the new bundle
+reloads with the current embedder identity — it cannot detect that the *wrong source
+file* was ingested. That failure shows up as collapsing `top_score` on a smoke query (the
+Stage 5 proxy), which is exactly how the drill in `experiments/incident.md` is caught and
+rolled back.
+
 ### Deploy target decision (Stage 4)
 
 **Local Docker Compose is the deploy target** — accepted as the minimum: one

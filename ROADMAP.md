@@ -98,10 +98,26 @@ stood up.
 
 ## Stage 6 - Maintain
 
-- [ ] Refresh/retraining path: how to re-ingest, re-embed, and rebuild the index.
-- [ ] Rollback path: how to revert to a previous index/model version.
-- [ ] Runbook for common incidents (empty results, slow retrieval, API failures).
-- [ ] One documented incident write-up (real or realistic) showing the maintain loop.
+- [x] Refresh/retraining path: how to re-ingest, re-embed, and rebuild the index.
+- [x] Rollback path: how to revert to a previous index/model version.
+- [x] Runbook for common incidents (empty results, slow retrieval, API failures).
+- [x] One documented incident write-up (real or realistic) showing the maintain loop.
+
+Stage 6 note (scope and honesty): this is an **index rebuild** loop, not retraining —
+there is no model to retrain, and it is not gated on the sibling stock app's PSI/KS drift
+checks. Refresh = re-ingest a committed fixture + re-embed + rebuild the FAISS index into
+a NEW versioned bundle (`python -m yt_rag.maintain --fixture <txt> --label vN`), rollback
+= move the `artifacts/CURRENT` pointer back only after Stage 3 identity validation passes.
+It runs on demand from the CLI; there is deliberately no scheduler, no cron, no registry,
+no alerting. The serving layer and compose are unchanged (the app ingests per request and
+does not read the pointer), so no image rebuild was needed. The offline default uses
+HashEmbedder + StubProvider + committed fixtures; the real-embedder rebuild is the same
+command with `--real-embedder` and is optional AND networked. Runbook: README Operational
+notes; executed incident with verbatim outputs: `experiments/incident.md`
+(top_score 0.257 -> 0.041 on a wrong-fixture refresh, rollback to v1, grounded query
+restored, and a failed identity validation shown to leave the pointer untouched).
+Stage 2's groundedness remains a stub and the qualitative LLM review stays open — Stage 6
+does not touch either.
 
 **Acceptance:** The maintain loop is documented and executable, not just described.
 
