@@ -9,7 +9,7 @@ A reviewer can clone this repo, run one command, and see a working RAG app with 
 ## Stage 0 - Foundation (prereq)
 
 - [x] Inspect existing code and inventory what works vs. what is broken.
-- [ ] Decide stack (see AGENTS.md defaults) and document the choice.
+- [x] Decide stack (see AGENTS.md defaults) and document the choice.
 - [x] Set up Python 3.11+ environment with pinned dependencies and a lockfile.
 - [x] Add `.gitignore` for secrets, artifacts, and model caches.
 - [x] Establish a test harness and CI (GitHub Actions) that runs tests + lint.
@@ -19,13 +19,13 @@ A reviewer can clone this repo, run one command, and see a working RAG app with 
 
 ## Stage 1 - Build (real RAG)
 
-- [ ] Transcript ingestion: robust YouTube transcript fetch with error handling.
-- [ ] Chunking strategy: document and implement (e.g., recursive character splitting with overlap). Justify the choice.
-- [ ] Embeddings: sentence-transformers model, pinned version.
-- [ ] Vector store: FAISS index with save/load.
-- [ ] Retrieval: top-k search with a documented similarity metric.
-- [ ] Generation: LLM call that uses retrieved context; provider abstraction so it is swappable.
-- [ ] Chat endpoint that ties ingestion -> retrieval -> generation together.
+- [x] Transcript ingestion: robust YouTube transcript fetch with error handling.
+- [x] Chunking strategy: document and implement (e.g., recursive character splitting with overlap). Justify the choice.
+- [x] Embeddings: sentence-transformers model, pinned version.
+- [x] Vector store: FAISS index with save/load.
+- [x] Retrieval: top-k search with a documented similarity metric.
+- [x] Generation: LLM call that uses retrieved context; provider abstraction so it is swappable.
+- [x] Chat endpoint that ties ingestion -> retrieval -> generation together.
 
 **Acceptance:** A query returns an answer grounded in retrieved transcript chunks, and the retrieval path is exercised end to end.
 
