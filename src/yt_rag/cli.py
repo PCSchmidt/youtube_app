@@ -46,6 +46,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--save-index", action="store_true", help="persist the FAISS index under artifacts/"
     )
+    parser.add_argument(
+        "--save-bundle",
+        action="store_true",
+        help="persist the FAISS index + identity manifest under artifacts/bundle/",
+    )
     args = parser.parse_args(argv)
 
     from yt_rag.embeddings import HashEmbedder
@@ -78,6 +83,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.save_index:
         path = pipeline.save_index()
         print(f"index saved to {path}", file=sys.stderr)
+    if args.save_bundle:
+        path = pipeline.save_bundle()
+        print(f"artifact bundle saved to {path}", file=sys.stderr)
     result = pipeline.ask(args.question)
     json.dump(result, sys.stdout, ensure_ascii=False, indent=2)
     print()

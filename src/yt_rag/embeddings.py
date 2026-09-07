@@ -49,6 +49,8 @@ class HashEmbedder:
     it exercises the full FAISS retrieval path deterministically.
     """
 
+    model_id = "hash-bag-of-words:v1"  # offline deterministic embedder identity
+
     def __init__(self, dim: int = EMBEDDING_MODEL_DIM) -> None:
         self.dim = dim
 
@@ -86,6 +88,9 @@ class SentenceTransformerEmbedder:
             self._model.get_sentence_embedding_dimension
         )
         self.dim = int(get_dim())
+        self.model_id = (
+            f"{model_name}@{revision}" if revision else model_name
+        )  # exact identity for the artifact manifest
         self._encode_kwargs = {"batch_size": 32, **encode_kwargs}
 
     def embed(self, texts: list[str]) -> np.ndarray:
