@@ -11,6 +11,7 @@ setup:
 	python -m venv .venv
 	$(VENV_PY) -m pip install --upgrade pip
 	$(VENV_PY) -m pip install -r requirements-lock.txt
+	$(VENV_PY) -m pip install -e . --no-deps
 
 test:
 	$(VENV_PY) -m pytest -q

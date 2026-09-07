@@ -36,3 +36,12 @@ Thumbs.db
 # Node (legacy reference only)
 node_modules/
 npm-debug.log*
+
+# Built RAG artifacts (FAISS index + chunk metadata)
+artifacts/
+
+# Local model weights / embedding caches (never commit; real cache lives in
+# ~/.cache/huggingface or %USERPROFILE%\\.cache\\huggingface outside the repo)
+models/
+model_cache/
+*.faiss
