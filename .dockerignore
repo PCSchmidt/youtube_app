@@ -1,0 +1,46 @@
+# Git and CI
+.git
+.github
+.gitignore
+
+# Virtualenvs and caches
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Secrets
+.env
+.env.*
+
+# Artifacts and model caches (bundle index stays out of images and git)
+artifacts/
+models/
+model_cache/
+*.faiss
+experiments/runs/
+
+# Legacy reference and sibling/parent files not needed in the image
+legacy/
+node_modules/
+
+# Docs and tooling not needed at runtime
+Makefile
+ROADMAP.md
+INVENTORY.md
+AGENTS.md
+
+# Build output
+dist/
+build/
+*.egg-info/
+
+# Tests except the committed fixtures needed by the offline smoke path
+tests/*
+!tests/fixtures

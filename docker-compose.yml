@@ -1,0 +1,10 @@
+services:
+  yt-rag:
+    build: .
+    image: yt-rag:stage3
+    ports:
+      - "8000:8000"
+    # Deliberately minimal: no secrets, no env_file, no volumes of model
+    # caches. The offline path (health + fixture-backed /chat smoke) needs
+    # nothing else; the networked real-model path is documented in README.
+    restart: "no"
