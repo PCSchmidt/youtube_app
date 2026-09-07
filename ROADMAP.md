@@ -61,10 +61,20 @@ smoke-tested locally (`docker compose up` + `/health` + fixture-backed
 
 ## Stage 4 - Deploy
 
-- [ ] FastAPI serving layer with health check and a documented API.
-- [ ] Deploy target decision: local Docker Compose (minimum) or a public endpoint (optional, if cost is acceptable).
-- [ ] Environment-based configuration (no hardcoded secrets).
-- [ ] Document the deployment runbook.
+- [x] FastAPI serving layer with health check and a documented API.
+- [x] Deploy target decision: local Docker Compose (minimum) or a public endpoint (optional, if cost is acceptable).
+- [x] Environment-based configuration (no hardcoded secrets).
+- [x] Document the deployment runbook.
+
+Stage 4 note (scope and honesty): this stage is docs-only on top of existing
+code — the serving layer itself is unchanged since Stage 1 (`/health` +
+`/chat`, stub or real provider). Local Docker Compose is the accepted deploy
+target; a public endpoint was declined (cost, portfolio-not-prod), so there is
+no TLS, auth, multi-user serving, or registry push. The runbook in README
+Operational notes was verified end to end on this branch: `docker compose up`
+(reusing the existing `yt-rag:stage3` image — no torch-heavier rebuild),
+`/health` 200, fixture-backed `/chat` 200, `docker compose down`. The env-var
+audit found three optional variables and no hardcoded secrets.
 
 **Acceptance:** The app runs from the container and responds to health + query endpoints.
 

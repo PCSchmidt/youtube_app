@@ -266,3 +266,126 @@ torch (a dependency of sentence-transformers, needed for the real-model path),
 so the Linux image is several GB. This is the honest cost of one lockfile
 covering Windows dev and Linux containers; a CPU-only or slim image would need
 a second lock, which Stage 3 explicitly avoids.
+
+### API (documented in Stage 4; the serving layer itself is unchanged since Stage 1)
+
+The serving layer is `yt_rag.app` (FastAPI, one process, no auth, no sessions —
+single-user local serving). Start it with `uvicorn yt_rag.app:app`, or via the
+compose service below. FastAPI generates the machine-readable schema and
+interactive docs from the same code that serves the endpoints: **`/docs`**
+(Swagger UI) and `/redoc`. The schemas below are documentation of what is
+there, not a second specification.
+
+**`GET /health`** — liveness probe. No request body. Returns 200
+`{"status": "ok"}`. The Docker healthcheck hits this endpoint.
+
+**`POST /chat`** — runs the whole pipeline per request: ingest -> chunk ->
+embed -> index -> retrieve top-k -> generate from the retrieved chunks only
+(default in-container path: `HashEmbedder` + `StubProvider`, i.e. the answer is
+a deterministic extractive stub, not an LLM).
+
+Request (`application/json`):
+
+```json
+{
+  "url": "https://www.youtube.com/watch?v=<11-char-id>",
+  "file": "tests/fixtures/teal_chatgpt_linkedin.txt",
+  "question": "how do I optimize my LinkedIn profile with ChatGPT"
+}
+```
+
+- `url` (optional): a YouTube URL or bare 11-char video ID (live fetch, network).
+- `file` (optional): path to a cached transcript `.txt`, relative to the
+  container workdir `/app`.
+- Exactly one of `url` / `file` is required; giving neither returns 422.
+- `question` (required): the query.
+
+Response 200 (`ChatResponse`):
+
+```json
+{
+  "question": "how do I optimize my LinkedIn profile with ChatGPT",
+  "answer": "[stub answer, grounded in 4 retrieved chunk(s)]\nRelevant transcript passage (chunk 3):\n...",
+  "retrieved": [
+    {"chunk_index": 3, "score": 0.318, "text": "chunk text..."}
+  ]
+}
+```
+
+`retrieved` holds up to 4 chunks (top-k), best first, `score` = cosine
+similarity between the question vector and the chunk vector.
+
+Status codes:
+
+- **200** — an answer was produced from retrieved chunks.
+- **422** — request validation (malformed body, missing `question`) or
+  ingestion failure (`IngestError`: neither `url` nor `file` given,
+  unrecognizable URL, video without captions, network fetch failure, missing
+  or empty transcript file).
+- **400** — pipeline value/state errors (`ValueError`/`RuntimeError`, e.g. a
+  transcript that chunks down to zero chunks).
+- **500** — unexpected server error. The default `StubProvider` cannot fail;
+  if a real provider is injected and the upstream call fails, that surfaces as
+  500 (`GenerationError` is deliberately not mapped to a 4xx: the request was
+  valid, the server-side dependency failed).
+
+### Deploy target decision (Stage 4)
+
+**Local Docker Compose is the deploy target** — accepted as the minimum: one
+command serves the API on `http://localhost:8000`, which is everything a
+reviewer cloning this repo needs. A public endpoint (ngrok, Azure, AWS, or any
+paid hosting) was **declined**: this is a portfolio project, not a production
+service; the image is several GB (torch in the single lock), and hosting it
+publicly would add cost and attack surface for no reviewer benefit. The honest
+consequence: **no TLS, no auth, no multi-user serving, no registry push —
+nothing in this repo is publicly reachable.**
+
+### Environment variables (all optional — no hardcoded secrets)
+
+The default compose path runs fully offline (`HashEmbedder` + `StubProvider` +
+committed fixtures): `docker compose up` works with **no key and no network**.
+The code reads exactly three environment variables; none is required:
+
+| Variable | Read by | When unset | Purpose |
+| --- | --- | --- | --- |
+| `OPENAI_COMPATIBLE_API_KEY` | `OpenAICompatibleProvider` (opt-in real-LLM path) and `make eval` qualitative notes | provider raises `GenerationError`; eval skips LLM notes | API key for the OpenAI-compatible endpoint. The only secret the code can read; passed at run time (`docker compose run --rm -e OPENAI_COMPATIBLE_API_KEY yt-rag ...`), never committed or baked into the image. |
+| `YT_RAG_ARTIFACTS_DIR` | `config.py` | `<repo>/artifacts` | Where FAISS indexes and bundles are written. |
+| `YT_RAG_EVAL_LLM_MODEL` | `make eval` qualitative notes | `openai/gpt-4o-mini` | Model used for the optional LLM notes during eval. |
+
+The real-LLM **base URL and model name are not environment variables**: they
+are the `--llm-base-url` / `--llm-model` CLI flags and
+`OpenAICompatibleProvider` constructor arguments (default base URL
+`https://openrouter.ai/api/v1`). The remaining `config.py` constants (the
+embedding model pin, chunk size/overlap, top-k, `EMBEDDING_MODEL_REVISION`)
+were audited for Stage 4 and deliberately left in code: they are reproducibility
+pins, not secrets or host-specific settings, and `config.py` contains no
+hardcoded credentials.
+
+### Deployment runbook (local Docker Compose, verified on branch `stage4`)
+
+```
+git clone <repo-url> && cd youtube_app
+make setup && make test          # optional; offline, no Docker needed
+docker compose up -d             # builds yt-rag:stage3 if absent, serves http://localhost:8000
+curl -s http://localhost:8000/health
+# {"status":"ok"}
+
+curl -s -X POST http://localhost:8000/chat \
+    -H "Content-Type: application/json" \
+    -d '{"file": "tests/fixtures/teal_chatgpt_linkedin.txt", "question": "how do I optimize my LinkedIn profile with ChatGPT"}'
+# -> ChatResponse JSON (answer + retrieved chunks); see "API" above
+
+docker compose down
+```
+
+The fixture path is inside the container (`WORKDIR /app`, fixtures copied by
+the Dockerfile), not a host path. Windows Git Bash notes:
+
+- Quote the JSON body in single quotes with plain double quotes inside, exactly
+  as above; Git Bash passes it through without Windows `\"` escaping.
+- If a proxy environment variable intercepts localhost calls, add
+  `--noproxy '*'` to the curl commands.
+- Use forward slashes in the `"file"` value; it is a container path.
+
+After `docker compose down` the container and the published port are gone; the
+image `yt-rag:stage3` stays cached locally. Nothing is pushed anywhere.
