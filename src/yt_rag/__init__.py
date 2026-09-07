@@ -1,8 +1,10 @@
 """yt_rag: retrieval-augmented generation over YouTube transcripts.
 
-Planned pillar functionality (Stage 1+ of ROADMAP.md): transcript ingestion,
-chunking, embeddings, vector store, and top-k retrieval feeding a generation
-step. This Stage 0 scaffold does NOT implement any of that yet.
+Real RAG pipeline (Stage 1): transcript ingestion, chunking with overlap,
+embeddings (pinned sentence-transformers model; deterministic offline
+HashEmbedder for tests), FAISS vector store with save/load, top-k retrieval
+(inner product on normalized vectors = cosine similarity), and generation
+restricted to retrieved chunks via a swappable provider.
 """
 
 __version__ = "0.1.0"
