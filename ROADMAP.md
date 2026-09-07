@@ -40,11 +40,22 @@ A reviewer can clone this repo, run one command, and see a working RAG app with 
 
 ## Stage 3 - Ship (versioned, reproducible)
 
-- [ ] Model + code versioning: tag releases; pin the embedding model version.
-- [ ] Model registry / artifact bundle: a documented way to store and load the index + model.
-- [ ] `requirements.lock` and a reproducible build path.
-- [ ] Containerize the app (Dockerfile) and provide `docker-compose.yml` for local run.
-- [ ] CI/CD pipeline that builds, tests, and produces a tagged artifact.
+- [x] Model + code versioning: tag releases; pin the embedding model version.
+- [x] Model registry / artifact bundle: a documented way to store and load the index + model.
+- [x] `requirements.lock` and a reproducible build path.
+- [x] Containerize the app (Dockerfile) and provide `docker-compose.yml` for local run.
+- [x] CI/CD pipeline that builds, tests, and produces a tagged artifact.
+
+Stage 3 note (scope and honesty): the tag (`stage3-v0.1.0`) is local
+bookkeeping, not a pushed release. CI builds the Docker image as build proof
+and pushes to no registry. Compose is local-only — this is **not** a production
+deploy. The artifact bundle stores identity metadata, not weights; the index
+itself stays gitignored. The lock resolved `numpy 2.5.3`, which requires
+Python >= 3.12, so the Docker image and CI now use Python 3.12 (documented in
+README). Stage 3 acceptance holds: a bundle is saved, reloaded, and queried
+with identity validation (tests/test_bundle.py), and the image was built and
+smoke-tested locally (`docker compose up` + `/health` + fixture-backed
+`/chat`, all offline).
 
 **Acceptance:** A tagged release can be rebuilt and run reproducibly from the artifact bundle.
 
