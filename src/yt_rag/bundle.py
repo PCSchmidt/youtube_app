@@ -133,9 +133,7 @@ def load_bundle(
             "with the bundle's model before querying it"
         )
     if expected_dim is not None and embedder_meta.get("dim") != expected_dim:
-        raise BundleError(
-            f"bundle dim {embedder_meta.get('dim')} != expected dim {expected_dim}"
-        )
+        raise BundleError(f"bundle dim {embedder_meta.get('dim')} != expected dim {expected_dim}")
 
     store = FaissVectorStore.load(directory)  # raises IndexStateError if index missing
     if store.dim != embedder_meta.get("dim"):

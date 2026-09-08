@@ -39,7 +39,10 @@ def test_manifest_identity_fields(tmp_path, teal_fixture):
     assert manifest["bundle_format"] == BUNDLE_FORMAT_VERSION
     assert manifest["embedder"]["model_id"] == embedder_model_id(HashEmbedder(dim=384))
     assert manifest["embedder"]["dim"] == 384
-    assert manifest["chunking"] == {"size_chars": CHUNK_SIZE_CHARS, "overlap_chars": CHUNK_OVERLAP_CHARS}
+    assert manifest["chunking"] == {
+        "size_chars": CHUNK_SIZE_CHARS,
+        "overlap_chars": CHUNK_OVERLAP_CHARS,
+    }
     assert manifest["retrieval"]["top_k"] == 4
     assert "created_at" in manifest
     # manifest stores identity, never weights
@@ -87,7 +90,9 @@ def test_load_bundle_missing_manifest(tmp_path):
 def test_load_bundle_missing_index(tmp_path):
     d = tmp_path / "onlymanifest"
     d.mkdir()
-    (d / "manifest.json").write_text(json.dumps(build_manifest(model_id="x", dim=384)), encoding="utf-8")
+    (d / "manifest.json").write_text(
+        json.dumps(build_manifest(model_id="x", dim=384)), encoding="utf-8"
+    )
     with pytest.raises(IndexStateError):
         load_bundle(d, expected_model_id=None)
 

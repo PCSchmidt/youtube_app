@@ -141,7 +141,9 @@ class ForeignEmbedder(HashEmbedder):
     model_id = "foreign-embedder:v9"
 
 
-b = maintain.refresh("tests/fixtures/teal_chatgpt_linkedin.txt", label="v3", embedder=ForeignEmbedder(dim=384))
+b = maintain.refresh(
+    "tests/fixtures/teal_chatgpt_linkedin.txt", label="v3", embedder=ForeignEmbedder(dim=384)
+)
 before = maintain.read_pointer()
 try:
     maintain.rollback("v3", embedder=HashEmbedder(dim=384))
