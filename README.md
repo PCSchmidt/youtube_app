@@ -81,10 +81,10 @@ by the project author, so read these as baselines to improve on, not benchmarks.
 Full run records: `experiments/runs/`; log: `experiments/baseline_log.md`;
 reproduce with `make eval` (commit `ceb5ecf`, 2026-09-07).
 
-| Embedder | hit rate@4 | MRR@4 | Groundedness (lexical) | Notes |
-| --- | --- | --- | --- | --- |
-| all-MiniLM-L6-v2 (pinned) | 0.917 (11/12) | 0.653 | 0.907 (STUB) | quality baseline |
-| HashEmbedder | 0.917 (11/12) | 0.660 | 0.905 (STUB) | deterministic smoke, **NOT a quality measure** |
+| Embedder                  | hit rate@4    | MRR@4 | Groundedness (lexical) | Notes                                               |
+| ------------------------- | ------------- | ----- | ---------------------- | --------------------------------------------------- |
+| all-MiniLM-L6-v2 (pinned) | 0.917 (11/12) | 0.653 | 0.907 (STUB)           | quality baseline                                    |
+| HashEmbedder              | 0.917 (11/12) | 0.660 | 0.905 (STUB)           | deterministic smoke, **NOT a quality measure** |
 
 How to read this:
 
@@ -142,7 +142,7 @@ How to read this:
   not answer quality. Stage 2 groundedness remains a stub and the qualitative
   LLM review is still open; nothing here relabels that.
 - Requires Python 3.12 or newer (the pinned lock resolved numpy 2.5.3, which
-dropped support for 3.11; `pyproject.toml` and CI were updated to match).
+  dropped support for 3.11; `pyproject.toml` and CI were updated to match).
 
 ## Operational notes
 
@@ -182,8 +182,7 @@ offline hash embedder (downloads model weights on first use, then caches them
 locally; requires network once), and `--llm --llm-model <name>` to generate
 with an OpenAI-compatible endpoint (requires `OPENAI_COMPATIBLE_API_KEY` and
 network). The same flow is available over HTTP: start the API with
-`uvicorn yt_rag.app:app` and `POST /chat` with `{"file": "...", "question":
-"..."}` (or `"url"` for a live YouTube fetch).
+`uvicorn yt_rag.app:app` and `POST /chat` with `{"file": "...", "question": "..."}` (or `"url"` for a live YouTube fetch).
 
 ### Versioning (Stage 3)
 
@@ -383,13 +382,13 @@ review is open — Stage 5 does not change or relabel either.
 
 **What could degrade, and the signal that would show it:**
 
-| Degradation | Signal in logs / metrics |
-| --- | --- |
-| Transcript format / API changes (youtube-transcript-api breaks, captions removed) | `/chat` 422 with `error_class: "IngestError"` rising in `error_classes` and `error_rate` |
-| Embedding-model drift (pinned model re-uploaded upstream, local cache vs fresh download differ) | `top_score` / `mean_top_score` sliding down with no code change; no hard error |
-| Index staleness (index built with a different chunk config or embedder than the serving pipeline's current config) | low `top_score` across requests, or a `BundleError`/`ValueError` on load (`error_class` 400s); bundle identity validation is the stronger guard (Stage 3) |
-| Empty retrieval | `empty_result: true` lines; `empty_result_count` / `empty_result_rate` in `/metrics` |
-| Stub vs real LLM behavior differences | stub cannot fail or refuse; a real provider failure surfaces as `error_class: "GenerationError"` with a 500 — watch `error_rate` and `generation_ms` |
+| Degradation                                                                                                        | Signal in logs / metrics                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Transcript format / API changes (youtube-transcript-api breaks, captions removed)                                  | `/chat` 422 with `error_class: "IngestError"` rising in `error_classes` and `error_rate`                                                                 |
+| Embedding-model drift (pinned model re-uploaded upstream, local cache vs fresh download differ)                    | `top_score` / `mean_top_score` sliding down with no code change; no hard error                                                                               |
+| Index staleness (index built with a different chunk config or embedder than the serving pipeline's current config) | low`top_score` across requests, or a `BundleError`/`ValueError` on load (`error_class` 400s); bundle identity validation is the stronger guard (Stage 3) |
+| Empty retrieval                                                                                                    | `empty_result: true` lines; `empty_result_count` / `empty_result_rate` in `/metrics`                                                                     |
+| Stub vs real LLM behavior differences                                                                              | stub cannot fail or refuse; a real provider failure surfaces as`error_class: "GenerationError"` with a 500 — watch `error_rate` and `generation_ms`       |
 
 **Compose verification (branch `stage5`).** Because `src/yt_rag/app.py`
 changed, the image was rebuilt (`docker compose build`, ~15 s with cached
@@ -448,13 +447,13 @@ cannot reload can never become current. Tests cover this:
 outputs: `experiments/incident.md` (bad fixture refresh -> detected via the Stage 5
 top-score proxy -> rollback to v1 -> grounded query restored).
 
-| Incident | Symptom (offline signals) | Runbook action |
-| --- | --- | --- |
-| **Empty results** (Stage 5 empty-result PROXY signal) | `empty_result: true` log line; `empty_result_count`/`empty_result_rate` in `/metrics` — retrieval returned 0 chunks (per-request serving: an empty/unchunkable transcript) | Serving builds per request, so there is no stale index to refresh; fix the source transcript, then rebuild a clean bundle if you want one on disk: `python -m yt_rag.maintain --fixture <good.txt> --label v<N>` |
-| **Slow retrieval** | `retrieval_ms` / `p95` fields in the `/chat` log line and `/metrics` latency summaries climbing | Flat index is O(n) per query; at fixture scale this is microseconds. Re-check what changed (corpus size, machine load). Rollback is not a latency tool, but `python -m yt_rag.maintain --list` confirms which bundle is current before comparing builds |
-| **Ingest failure: missing file** | `python -m yt_rag.maintain --fixture tests/fixtures/missing_file.txt` -> `error: IngestError: Transcript file not found: ...`, exit code 1, pointer untouched (refresh failed before any bundle was written) | Point `--fixture` at a file that exists (committed fixtures: `tests/fixtures/*.txt`); over HTTP this is the documented 422 with `error_class: "IngestError"` |
-| **Ingest/API failure (422)** | `/chat` 422 with `error_class: "IngestError"` (no `url`/`file`, bad URL, captions removed, network fetch failure) rising in `/metrics` `error_classes` | Serving maps `IngestError` to 422 (Stage 4 doc). Fix the source or the request body. The maintain CLI is not affected — it reads local fixture files, never YouTube (unless `--url` in `yt_rag.cli`, which is networked) |
-| **BundleError on embedder mismatch** | `error: BundleError: bundle was built with model_id '...', but the expected embedder is '...'` — a rollback or reload refuses the bundle; pointer untouched | Rebuild with the bundle's embedder: `python -m yt_rag.maintain --fixture <same.txt> --real-embedder --label v<N>` (networked, optional) — or roll back to a bundle that matches the current embedder: `python -m yt_rag.maintain --rollback v<good-N>` |
+| Incident                                                    | Symptom (offline signals)                                                                                                                                                                                        | Runbook action                                                                                                                                                                                                                                             |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Empty results** (Stage 5 empty-result PROXY signal) | `empty_result: true` log line; `empty_result_count`/`empty_result_rate` in `/metrics` — retrieval returned 0 chunks (per-request serving: an empty/unchunkable transcript)                              | Serving builds per request, so there is no stale index to refresh; fix the source transcript, then rebuild a clean bundle if you want one on disk:`python -m yt_rag.maintain --fixture <good.txt> --label v<N>`                                          |
+| **Slow retrieval**                                    | `retrieval_ms` / `p95` fields in the `/chat` log line and `/metrics` latency summaries climbing                                                                                                          | Flat index is O(n) per query; at fixture scale this is microseconds. Re-check what changed (corpus size, machine load). Rollback is not a latency tool, but`python -m yt_rag.maintain --list` confirms which bundle is current before comparing builds   |
+| **Ingest failure: missing file**                      | `python -m yt_rag.maintain --fixture tests/fixtures/missing_file.txt` -> `error: IngestError: Transcript file not found: ...`, exit code 1, pointer untouched (refresh failed before any bundle was written) | Point`--fixture` at a file that exists (committed fixtures: `tests/fixtures/*.txt`); over HTTP this is the documented 422 with `error_class: "IngestError"`                                                                                          |
+| **Ingest/API failure (422)**                          | `/chat` 422 with `error_class: "IngestError"` (no `url`/`file`, bad URL, captions removed, network fetch failure) rising in `/metrics` `error_classes`                                               | Serving maps`IngestError` to 422 (Stage 4 doc). Fix the source or the request body. The maintain CLI is not affected — it reads local fixture files, never YouTube (unless `--url` in `yt_rag.cli`, which is networked)                             |
+| **BundleError on embedder mismatch**                  | `error: BundleError: bundle was built with model_id '...', but the expected embedder is '...'` — a rollback or reload refuses the bundle; pointer untouched                                                   | Rebuild with the bundle's embedder:`python -m yt_rag.maintain --fixture <same.txt> --real-embedder --label v<N>` (networked, optional) — or roll back to a bundle that matches the current embedder: `python -m yt_rag.maintain --rollback v<good-N>` |
 
 **Known limitation (stated, not hidden):** the refresh path validates that the new bundle
 reloads with the current embedder identity — it cannot detect that the *wrong source
@@ -479,11 +478,11 @@ The default compose path runs fully offline (`HashEmbedder` + `StubProvider` +
 committed fixtures): `docker compose up` works with **no key and no network**.
 The code reads exactly three environment variables; none is required:
 
-| Variable | Read by | When unset | Purpose |
-| --- | --- | --- | --- |
-| `OPENAI_COMPATIBLE_API_KEY` | `OpenAICompatibleProvider` (opt-in real-LLM path) and `make eval` qualitative notes | provider raises `GenerationError`; eval skips LLM notes | API key for the OpenAI-compatible endpoint. The only secret the code can read; passed at run time (`docker compose run --rm -e OPENAI_COMPATIBLE_API_KEY yt-rag ...`), never committed or baked into the image. |
-| `YT_RAG_ARTIFACTS_DIR` | `config.py` | `<repo>/artifacts` | Where FAISS indexes and bundles are written. |
-| `YT_RAG_EVAL_LLM_MODEL` | `make eval` qualitative notes | `openai/gpt-4o-mini` | Model used for the optional LLM notes during eval. |
+| Variable                      | Read by                                                                                 | When unset                                               | Purpose                                                                                                                                                                                                           |
+| ----------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OPENAI_COMPATIBLE_API_KEY` | `OpenAICompatibleProvider` (opt-in real-LLM path) and `make eval` qualitative notes | provider raises`GenerationError`; eval skips LLM notes | API key for the OpenAI-compatible endpoint. The only secret the code can read; passed at run time (`docker compose run --rm -e OPENAI_COMPATIBLE_API_KEY yt-rag ...`), never committed or baked into the image. |
+| `YT_RAG_ARTIFACTS_DIR`      | `config.py`                                                                           | `<repo>/artifacts`                                     | Where FAISS indexes and bundles are written.                                                                                                                                                                      |
+| `YT_RAG_EVAL_LLM_MODEL`     | `make eval` qualitative notes                                                         | `openai/gpt-4o-mini`                                   | Model used for the optional LLM notes during eval.                                                                                                                                                                |
 
 The real-LLM **base URL and model name are not environment variables**: they
 are the `--llm-base-url` / `--llm-model` CLI flags and
