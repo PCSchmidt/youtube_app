@@ -16,6 +16,7 @@ from yt_rag.app import create_app
 from yt_rag.embeddings import HashEmbedder
 from yt_rag.generation import StubProvider
 from yt_rag.observability import PROM_ENDPOINTS, PrometheusMetrics
+from yt_rag.pipeline import RAGPipeline
 
 CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
 
@@ -42,6 +43,15 @@ ALLOWED_STATUSES = {"200", "400", "404", "422", "500"}
 
 @pytest.fixture(scope="module")
 def client(teal_fixture):
+    app = create_app(embedder=HashEmbedder(dim=384), provider=StubProvider())
+    with TestClient(app) as c:
+        c.teal_fixture = str(teal_fixture)
+        yield c
+
+
+@pytest.fixture()
+def fresh_client(teal_fixture):
+    """Function-scoped app: zero prior traffic, for exact-count assertions."""
     app = create_app(embedder=HashEmbedder(dim=384), provider=StubProvider())
     with TestClient(app) as c:
         c.teal_fixture = str(teal_fixture)
@@ -188,6 +198,129 @@ def test_writer_is_deterministic_and_unit_testable():
         'yt_rag_request_latency_seconds_bucket{endpoint="/chat",method="POST",le="+Inf"} 2' in first
     )
     assert "yt_rag_up 1" in first
+
+
+def test_retrieval_and_generation_latency_histograms_exposed(fresh_client):
+    r = fresh_client.post(
+        "/chat",
+        json={"file": fresh_client.teal_fixture, "question": "how to optimize a linkedin profile"},
+    )
+    assert r.status_code == 200
+    text = _get_prom(fresh_client)
+    for name in ("yt_rag_retrieval_latency_seconds", "yt_rag_generation_latency_seconds"):
+        labels_list = [labels for labels, _ in _series(text, f"{name}_count")]
+        assert labels_list == [{"endpoint": "/chat"}]
+        buckets = [(labels["le"], value) for labels, value in _series(text, f"{name}_bucket")]
+        assert buckets[-1] == ("+Inf", 1.0)
+        assert _lookup(text, f"{name}_sum", {"endpoint": "/chat"}) >= 0.0
+
+
+def test_empty_results_total_increments_on_empty_result(teal_fixture):
+    class EmptyRetriever:
+        def retrieve(self, query: str):
+            return []
+
+    class NullProvider:
+        def generate(self, question: str, retrieved) -> str:
+            return "no retrieved chunks"
+
+    class EmptyResultPipeline(RAGPipeline):
+        def ingest_transcript(self, transcript):
+            chunks = super().ingest_transcript(transcript)
+            self.retriever = EmptyRetriever()
+            return chunks
+
+    def factory() -> RAGPipeline:
+        return EmptyResultPipeline(embedder=HashEmbedder(dim=384), provider=NullProvider())
+
+    app = create_app(pipeline_factory=factory)
+    with TestClient(app) as c:
+        assert _lookup(_get_prom(c), "yt_rag_empty_results_total", {"endpoint": "/chat"}) is None
+        r = c.post("/chat", json={"file": str(teal_fixture), "question": "anything"})
+        assert r.status_code == 200 and r.json()["retrieved"] == []
+        assert _lookup(_get_prom(c), "yt_rag_empty_results_total", {"endpoint": "/chat"}) == 1.0
+
+
+def test_mean_gauges_present_and_finite_after_chat(fresh_client):
+    r = fresh_client.post(
+        "/chat",
+        json={"file": fresh_client.teal_fixture, "question": "how to optimize a linkedin profile"},
+    )
+    assert r.status_code == 200
+    text = _get_prom(fresh_client)
+    top = _lookup(text, "yt_rag_mean_top_score", {"endpoint": "/chat"})
+    assert top is not None
+    assert 0.0 <= top <= 1.0
+    mrc = _lookup(text, "yt_rag_mean_retrieved_count", {"endpoint": "/chat"})
+    assert mrc is not None and mrc >= 1.0
+    # HELP text must flag both as proxies, not answer quality.
+    assert "PROXY metric" in text
+    assert "NOT answer quality" in text
+
+
+def test_question_length_histogram_exposed(fresh_client):
+    r = fresh_client.post(
+        "/chat",
+        json={"file": fresh_client.teal_fixture, "question": "how to optimize a linkedin profile"},
+    )
+    assert r.status_code == 200
+    text = _get_prom(fresh_client)
+    labels_list = [labels for labels, _ in _series(text, "yt_rag_question_length_chars_count")]
+    assert labels_list == [{"endpoint": "/chat"}]
+    buckets = [
+        (labels["le"], value)
+        for labels, value in _series(text, "yt_rag_question_length_chars_bucket")
+    ]
+    assert buckets[0] == ("10", 0.0)
+    assert buckets[-1] == ("+Inf", 1.0)
+    assert _lookup(text, "yt_rag_question_length_chars_sum", {"endpoint": "/chat"}) > 0.0
+
+
+def test_provider_mode_has_bounded_label_values(client):
+    text = _get_prom(client)
+    modes = [labels["mode"] for labels, _ in _series(text, "yt_rag_provider_mode")]
+    assert modes == ["stub"]  # stub app: exactly one bounded mode series
+    assert all(m in {"stub", "openai_compatible", "unknown"} for m in modes)
+
+
+def test_provider_mode_unknown_fallback_is_bounded(teal_fixture):
+    class NullProvider:
+        def generate(self, question: str, retrieved) -> str:
+            return "answer"
+
+    app = create_app(embedder=HashEmbedder(dim=384), provider=NullProvider())
+    with TestClient(app) as c:
+        r = c.post("/chat", json={"file": str(teal_fixture), "question": "anything"})
+        assert r.status_code == 200
+        modes = [labels["mode"] for labels, _ in _series(_get_prom(c), "yt_rag_provider_mode")]
+        assert modes == ["unknown"]
+
+
+def test_no_unbounded_label_growth_after_varied_requests(client):
+    questions = ["a", "x" * 300, "another question about nothing in particular", "12345"]
+    for q in questions:
+        r = client.post("/chat", json={"file": client.teal_fixture, "question": q})
+        assert r.status_code == 200
+    assert client.post("/chat", json={"question": "hi"}).status_code == 422
+    text = _get_prom(client)
+    endpoints = set()
+    for family in (
+        "yt_rag_requests_total",
+        "yt_rag_errors_total",
+        "yt_rag_request_latency_seconds_bucket",
+        "yt_rag_retrieval_latency_seconds_bucket",
+        "yt_rag_generation_latency_seconds_bucket",
+        "yt_rag_question_length_chars_bucket",
+        "yt_rag_empty_results_total",
+        "yt_rag_mean_top_score",
+        "yt_rag_mean_retrieved_count",
+    ):
+        for labels, _ in _series(text, family):
+            endpoints.add(labels.get("endpoint"))
+    assert endpoints <= PROM_ENDPOINTS
+    # The only expected scrape-to-scrape change is this scrape recording
+    # itself afterwards (one /metrics/prometheus sample); determinism of the
+    # writer for identical state is covered by the unit test below.
 
 
 def test_writer_rejects_unbounded_label_values():

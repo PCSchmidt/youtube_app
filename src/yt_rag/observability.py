@@ -64,6 +64,43 @@ PROM_ERROR_CLASSES: frozenset[str] = frozenset(
     }
 )
 
+# Phase 3: bounded provider-mode vocabulary for yt_rag_provider_mode. Derived
+# from the generation provider class name; anything unrecognized maps to
+# "unknown" so the label can never grow unbounded.
+PROM_PROVIDER_MODES: frozenset[str] = frozenset({"stub", "openai_compatible", "unknown"})
+
+# Phase 3: question-length buckets (characters). Chat questions are one short
+# sentence; buckets span that to the few-thousand-character tail, then +Inf.
+QUESTION_LENGTH_BUCKETS: tuple[float, ...] = (10, 50, 100, 200, 500, 1000, 2000)
+
+
+def provider_mode_name(provider: object) -> str:
+    """Map a generation provider instance to a bounded mode label value."""
+    name = type(provider).__name__
+    return {
+        "StubProvider": "stub",
+        "OpenAICompatibleProvider": "openai_compatible",
+    }.get(name, "unknown")
+
+
+class _Histogram:
+    """Cumulative bucket counts + sum/count for one labeled histogram series."""
+
+    def __init__(self, buckets: tuple[float, ...]) -> None:
+        self.buckets = tuple(sorted(buckets))
+        self.counts = [0] * len(self.buckets)  # cumulative per bucket
+        self.sum = 0.0
+        self.count = 0
+
+    def observe(self, value: float) -> None:
+        value = max(0.0, float(value))
+        for i, bound in enumerate(self.buckets):
+            if value <= bound:
+                self.counts[i] += 1
+        self.sum += value
+        self.count += 1
+
+
 # Bounded sample buffers: enough history for percentile summaries without
 # growing without bound in a long-lived process.
 _MAX_SAMPLES = 2048
@@ -232,6 +269,19 @@ class PrometheusMetrics:
         self.latency_buckets: dict[tuple[str, str], list[int]] = {}
         self.latency_sum: dict[tuple[str, str], float] = {}
         self.latency_count: dict[tuple[str, str], int] = {}
+        # Phase 3 domain families (all /chat only, endpoint label only).
+        self.retrieval_latency: dict[str, _Histogram] = {}
+        self.generation_latency: dict[str, _Histogram] = {}
+        self.question_length: dict[str, _Histogram] = {}
+        self.empty_results: dict[str, int] = {}
+        # Rolling means mirroring the JSON snapshot semantics:
+        # mean_top_score averages top scores over non-empty successes;
+        # mean_retrieved_count averages retrieved counts over all successes.
+        self.top_score_sum: dict[str, float] = {}
+        self.top_score_n: dict[str, int] = {}
+        self.retrieved_count_sum: dict[str, float] = {}
+        self.retrieved_count_n: dict[str, int] = {}
+        self.provider_mode: str | None = None
 
     @staticmethod
     def _check(value: str, allowed: frozenset, kind: str) -> str:
@@ -266,6 +316,78 @@ class PrometheusMetrics:
         self._check(error_class, PROM_ERROR_CLASSES, "error_class")
         key = (endpoint, method, error_class)
         self.errors[key] = self.errors.get(key, 0) + 1
+
+    def _domain_histogram(
+        self, store: dict[str, _Histogram], buckets: tuple[float, ...], endpoint: str
+    ) -> _Histogram:
+        self._check(endpoint, PROM_ENDPOINTS, "endpoint")
+        hist = store.get(endpoint)
+        if hist is None:
+            hist = _Histogram(buckets)
+            store[endpoint] = hist
+        return hist
+
+    def observe_retrieval_latency(self, *, endpoint: str, duration_s: float) -> None:
+        """Record retrieval latency for yt_rag_retrieval_latency_seconds."""
+        self._domain_histogram(self.retrieval_latency, LATENCY_BUCKETS, endpoint).observe(
+            duration_s
+        )
+
+    def observe_generation_latency(self, *, endpoint: str, duration_s: float) -> None:
+        """Record generation latency for yt_rag_generation_latency_seconds."""
+        self._domain_histogram(self.generation_latency, LATENCY_BUCKETS, endpoint).observe(
+            duration_s
+        )
+
+    def observe_question_length(self, *, endpoint: str, chars: int) -> None:
+        """Record question length for yt_rag_question_length_chars."""
+        self._domain_histogram(self.question_length, QUESTION_LENGTH_BUCKETS, endpoint).observe(
+            float(chars)
+        )
+
+    def observe_empty_result(self, *, endpoint: str) -> None:
+        """Record one successful chat with zero retrieved chunks."""
+        self._check(endpoint, PROM_ENDPOINTS, "endpoint")
+        self.empty_results[endpoint] = self.empty_results.get(endpoint, 0) + 1
+
+    def observe_success_quality(
+        self, *, endpoint: str, retrieved_count: int, top_score: float | None
+    ) -> None:
+        """Accumulate rolling-mean proxy inputs (mirrors JSON snapshot rules).
+
+        mean_top_score averages top scores over NON-EMPTY successes only;
+        mean_retrieved_count averages retrieved counts over ALL successes.
+        """
+        self._check(endpoint, PROM_ENDPOINTS, "endpoint")
+        self.retrieved_count_sum[endpoint] = self.retrieved_count_sum.get(endpoint, 0.0) + float(
+            retrieved_count
+        )
+        self.retrieved_count_n[endpoint] = self.retrieved_count_n.get(endpoint, 0) + 1
+        if top_score is not None:
+            self.top_score_sum[endpoint] = self.top_score_sum.get(endpoint, 0.0) + float(top_score)
+            self.top_score_n[endpoint] = self.top_score_n.get(endpoint, 0) + 1
+
+    def set_provider_mode(self, mode: str) -> None:
+        """Record the active generation provider mode (bounded vocabulary)."""
+        if mode not in PROM_PROVIDER_MODES:
+            raise ValueError(f"provider mode {mode!r} is outside the bounded vocabulary")
+        self.provider_mode = mode
+
+    def _render_histogram_family(
+        self, lines: list[str], name: str, help_text: str, store: dict[str, _Histogram]
+    ) -> None:
+        lines.append(f"# HELP {name} {help_text}")
+        lines.append(f"# TYPE {name} histogram")
+        for endpoint in sorted(store):
+            hist = store[endpoint]
+            base = f'{{endpoint="{_escape_label_value(endpoint)}"}}'
+            for bound, count in zip(hist.buckets, hist.counts):  # counts stored cumulative
+                lines.append(
+                    f'{name}_bucket{base[:-1]},le="{_format_label_float(bound)}"}} {count}'
+                )
+            lines.append(f'{name}_bucket{base[:-1]},le="+Inf"}} {hist.count}')
+            lines.append(f"{name}_sum{base} {hist.sum:.6f}")
+            lines.append(f"{name}_count{base} {hist.count}")
 
     def render(self) -> str:
         """Deterministic Prometheus text exposition (version 0.0.4)."""
@@ -306,6 +428,66 @@ class PrometheusMetrics:
             lines.append(f'{hist}_bucket{base[:-1]},le="+Inf"}} {self.latency_count[bkey]}')
             lines.append(f"{hist}_sum{base} {self.latency_sum[bkey]:.6f}")
             lines.append(f"{hist}_count{base} {self.latency_count[bkey]}")
+
+        # Phase 3: app-specific families (all /chat only, low-cardinality).
+        empty = f"{PROM_PREFIX}_empty_results_total"
+        lines.append(
+            f"# HELP {empty} Successful requests with zero retrieved chunks; divide by requests_total to approximate the empty-result rate."
+        )
+        lines.append(f"# TYPE {empty} counter")
+        for endpoint in sorted(self.empty_results):
+            lines.append(
+                f'{empty}{{endpoint="{_escape_label_value(endpoint)}"}} {self.empty_results[endpoint]}'
+            )
+
+        self._render_histogram_family(
+            lines,
+            f"{PROM_PREFIX}_retrieval_latency_seconds",
+            "Retrieval latency in seconds (time to run top-k search).",
+            self.retrieval_latency,
+        )
+        self._render_histogram_family(
+            lines,
+            f"{PROM_PREFIX}_generation_latency_seconds",
+            "Generation latency in seconds (time spent in the LLM provider).",
+            self.generation_latency,
+        )
+        self._render_histogram_family(
+            lines,
+            f"{PROM_PREFIX}_question_length_chars",
+            "Question length in characters.",
+            self.question_length,
+        )
+
+        top = f"{PROM_PREFIX}_mean_top_score"
+        lines.append(
+            f"# HELP {top} PROXY metric: rolling mean of the top retrieval score over non-empty successes. NOT answer quality."
+        )
+        lines.append(f"# TYPE {top} gauge")
+        for endpoint in sorted(self.top_score_n):
+            if self.top_score_n[endpoint]:
+                lines.append(
+                    f'{top}{{endpoint="{_escape_label_value(endpoint)}"}} {self.top_score_sum[endpoint] / self.top_score_n[endpoint]:.4f}'
+                )
+
+        mrc = f"{PROM_PREFIX}_mean_retrieved_count"
+        lines.append(
+            f"# HELP {mrc} PROXY metric: rolling mean number of retrieved chunks over successful requests. NOT answer quality."
+        )
+        lines.append(f"# TYPE {mrc} gauge")
+        for endpoint in sorted(self.retrieved_count_n):
+            if self.retrieved_count_n[endpoint]:
+                lines.append(
+                    f'{mrc}{{endpoint="{_escape_label_value(endpoint)}"}} {self.retrieved_count_sum[endpoint] / self.retrieved_count_n[endpoint]:.4f}'
+                )
+
+        pm = f"{PROM_PREFIX}_provider_mode"
+        lines.append(
+            f"# HELP {pm} Active generation provider mode (stub / openai_compatible / unknown); 1 for the active mode."
+        )
+        lines.append(f"# TYPE {pm} gauge")
+        if self.provider_mode is not None:
+            lines.append(f'{pm}{{mode="{self.provider_mode}"}} 1')
 
         lines.append(f"# HELP {PROM_PREFIX}_up Whether the app is serving (1 = up).")
         lines.append(f"# TYPE {PROM_PREFIX}_up gauge")

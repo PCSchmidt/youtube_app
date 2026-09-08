@@ -24,6 +24,7 @@ from yt_rag.observability import (
     get_logger,
     log_request,
     new_request_id,
+    provider_mode_name,
 )
 from yt_rag.pipeline import RAGPipeline
 
@@ -121,6 +122,8 @@ def create_app(
     def chat(req: ChatRequest) -> ChatResponse:
         request_id = new_request_id()
         pipeline = new_pipeline()
+        # Bounded provider-mode gauge (stub / openai_compatible / unknown).
+        prom.set_provider_mode(provider_mode_name(pipeline.provider))
         started = time.perf_counter()
         status = 200
         error_class = None
@@ -153,6 +156,7 @@ def create_app(
                 status=status,
                 duration_s=total_ms / 1000,
             )
+            prom.observe_question_length(endpoint="/chat", chars=len(req.question))
             # Keep Prometheus labels bounded: unexpected exception classes
             # collapse to "Unhandled" (same defensive fallback as the log line).
             prom_error_class = error_class or "Unhandled"
@@ -169,6 +173,17 @@ def create_app(
                 retrieved = result.get("retrieved", [])
                 retrieved_count = len(retrieved)
                 top_score = retrieved[0]["score"] if retrieved else None
+                if retrieval_ms is not None:
+                    prom.observe_retrieval_latency(endpoint="/chat", duration_s=retrieval_ms / 1000)
+                if generation_ms is not None:
+                    prom.observe_generation_latency(
+                        endpoint="/chat", duration_s=generation_ms / 1000
+                    )
+                prom.observe_success_quality(
+                    endpoint="/chat", retrieved_count=retrieved_count, top_score=top_score
+                )
+                if retrieved_count == 0:
+                    prom.observe_empty_result(endpoint="/chat")
                 metrics.record_success(
                     total_ms=total_ms,
                     retrieval_ms=retrieval_ms if retrieval_ms is not None else 0.0,

@@ -104,7 +104,11 @@ Stage 5 note (scope and honesty): observability is local and in-process — one
 JSON log line per request (stdlib logging, stdout), a `GET /metrics`
 endpoint of plain process counters that reset on restart, and (Phase 2) a
 `GET /metrics/prometheus` text-exposition endpoint written by hand with the
-stdlib only — still in-process, still no scraper or storage. The retrieval-quality
+stdlib only — still in-process, still no scraper or storage. Phase 3 adds the
+app-specific families there (retrieval/generation latency histograms,
+empty-result counter, mean_top_score / mean_retrieved_count PROXY gauges,
+question-length histogram, provider-mode gauge) with endpoint-only bounded
+labels; they mirror the JSON snapshot semantics but are NOT answer quality. The retrieval-quality
 signal is a PROXY (empty-result rate, top score), not a quality measure:
 Stage 2 groundedness is a lexical heuristic, NOT semantic truth, and the
 qualitative LLM review is still open. No new dependencies, no extra containers, no dashboards, no alerting;
