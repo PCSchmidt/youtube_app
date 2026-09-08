@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "description": "Hand-labeled deterministic groundedness cases for yt_rag.groundedness. Each case pairs an answer with the retrieved context texts it should be judged against and the EXPECTED answer-level verdict, labeled by the author per the evaluator's documented rules (coverage >= 0.6 of content words, all numbers present in context, refusal phrases, empty answers). Contexts are excerpts of the committed fixture transcripts (tests/fixtures/teal_chatgpt_linkedin.txt, tests/fixtures/game_dev_ai_paper.txt). These are HEURISTIC labels, NOT semantic truth: the evaluator checks lexical/numeric support, not correctness.",
+  "cases": [
+    {
+      "id": "sup-01",
+      "category": "supported",
+      "description": "single claim whose content words and number all appear in the context",
+      "answer": "LinkedIn headline limit is 220 characters.",
+      "context": [
+        "220 characters is the max limit for your LinkedIn headline so you want to use as much as possible"
+      ],
+      "expected_verdict": "supported"
+    },
+    {
+      "id": "sup-02",
+      "category": "supported",
+      "description": "StubProvider-style wrapper lines are stripped as metadata; echoed passage scores supported",
+      "answer": "[stub answer, grounded in 1 retrieved chunk(s)]\nRelevant transcript passage (chunk 0):\nthe graphics are all simulated in real time at 20 frames per second.",
+      "context": [
+        "it's actually a brand new game from 2024 powered by game and gen the world's first entirely neural network based game engine the environment the collisions and the graphics are all simulated in real time at 20 frames per second and not a single line of code was written to develop this level"
+      ],
+      "expected_verdict": "supported"
+    },
+    {
+      "id": "par-01",
+      "category": "partially_supported",
+      "description": "one supported claim plus one claim about things absent from the context",
+      "answer": "LinkedIn headline limit is 220 characters. The same limit applies to every social network profile.",
+      "context": [
+        "220 characters is the max limit for your LinkedIn headline so you want to use as much as possible"
+      ],
+      "expected_verdict": "partially_supported"
+    },
+    {
+      "id": "uns-01",
+      "category": "unsupported",
+      "description": "answer about entities absent from the context (retrieved the wrong topic)",
+      "answer": "OpenAI released GPT-5 with multilingual video reasoning in Seattle.",
+      "context": [
+        "220 characters is the max limit for your LinkedIn headline so you want to use as much as possible"
+      ],
+      "expected_verdict": "unsupported"
+    },
+    {
+      "id": "con-01",
+      "category": "contradiction_suspected",
+      "description": "fabricated number: context says 220, answer asserts 500 (the only contradiction signal available: a number absent from the context)",
+      "answer": "LinkedIn headline limit is 500 characters.",
+      "context": [
+        "220 characters is the max limit for your LinkedIn headline so you want to use as much as possible"
+      ],
+      "expected_verdict": "unsupported"
+    },
+    {
+      "id": "mis-01",
+      "category": "missing_context",
+      "description": "non-empty answer with zero retrieved context: every token is unsupported",
+      "answer": "The engine runs at 20 frames per second.",
+      "context": [],
+      "expected_verdict": "unsupported"
+    },
+    {
+      "id": "eva-01",
+      "category": "evasive",
+      "description": "cannot-find-it refusal",
+      "answer": "I cannot find it in the transcript.",
+      "context": [
+        "220 characters is the max limit for your LinkedIn headline so you want to use as much as possible"
+      ],
+      "expected_verdict": "evasive"
+    },
+    {
+      "id": "eva-02",
+      "category": "evasive",
+      "description": "not-mentioned refusal variant",
+      "answer": "That is not mentioned in the transcript.",
+      "context": [],
+      "expected_verdict": "evasive"
+    },
+    {
+      "id": "emp-01",
+      "category": "empty",
+      "description": "empty response",
+      "answer": "",
+      "context": [],
+      "expected_verdict": "empty"
+    }
+  ]
+}

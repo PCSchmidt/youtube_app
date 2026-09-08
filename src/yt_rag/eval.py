@@ -1,23 +1,27 @@
 """Evaluation harness (Stage 2): retrieval + generation metrics over a labeled set.
 
 Measures the Stage 1 pipeline AS-IS (no tuning): hit rate@k and MRR@k against a
-small hand-labeled eval set, plus a cheap lexical groundedness check on the
-generated answer and a refusal check for questions whose answer is absent from
-the transcript. Everything runs offline with the deterministic HashEmbedder +
-StubProvider; the pinned MiniLM model is used only when explicitly requested
-(via `make eval` or ``python -m yt_rag.eval --embedder minilm``), which may
-download weights on first use.
+small hand-labeled eval set, plus deterministic groundedness evaluation of the
+generated answer against the retrieved context (see yt_rag.groundedness:
+claim-level supported/unsupported verdicts, empty/evasive detection, and a
+token-level lexical overlap proxy) and a refusal check for questions whose
+answer is absent from the transcript. Everything runs offline with the
+deterministic HashEmbedder + StubProvider; the pinned MiniLM model is used only
+when explicitly requested (via `make eval` or
+``python -m yt_rag.eval --embedder minilm``), which may download weights on
+first use.
 
 The default provider is StubProvider, an extractive stub, NOT an LLM: any
-groundedness number measured with it is a STUB number and says nothing about
-LLM answer quality.
+groundedness number measured with it says nothing about LLM answer quality.
+And in all cases the groundedness labels are LEXICAL HEURISTICS, NOT semantic
+truth (see yt_rag.groundedness.GROUNDEDNESS_LIMITATIONS, embedded in every run
+record).
 """
 
 from __future__ import annotations
 
 import json
 import os
-import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -28,6 +32,13 @@ from yt_rag.chunk import chunk_text
 from yt_rag.config import CHUNK_OVERLAP_CHARS, CHUNK_SIZE_CHARS, DEFAULT_TOP_K, REPO_ROOT
 from yt_rag.embeddings import EmbeddingProvider, HashEmbedder
 from yt_rag.generation import GenerationProvider, StubProvider
+from yt_rag.groundedness import (
+    EVASIVE_PHRASES,
+    GROUNDEDNESS_LIMITATIONS,
+    content_tokens,
+    evaluate_groundedness,
+    run_groundedness_set,
+)
 from yt_rag.ingest import load_transcript_file
 from yt_rag.pipeline import RAGPipeline
 
@@ -35,75 +46,9 @@ DEFAULT_EVAL_SET = REPO_ROOT / "experiments" / "eval_set.json"
 DEFAULT_RUNS_DIR = REPO_ROOT / "experiments" / "runs"
 FIXTURES_DIR = REPO_ROOT / "tests" / "fixtures"
 
-# Small stopword list for the lexical groundedness overlap: content words only.
-_TOKEN_RE = re.compile(r"[a-z0-9']+")
-_STOPWORDS = frozenset(
-    [
-        "a",
-        "an",
-        "and",
-        "are",
-        "as",
-        "at",
-        "be",
-        "but",
-        "by",
-        "can",
-        "do",
-        "does",
-        "for",
-        "from",
-        "had",
-        "has",
-        "have",
-        "how",
-        "i",
-        "in",
-        "is",
-        "it",
-        "its",
-        "me",
-        "my",
-        "of",
-        "on",
-        "or",
-        "our",
-        "so",
-        "that",
-        "the",
-        "their",
-        "them",
-        "then",
-        "there",
-        "these",
-        "they",
-        "this",
-        "to",
-        "was",
-        "we",
-        "what",
-        "when",
-        "where",
-        "which",
-        "who",
-        "why",
-        "will",
-        "with",
-        "you",
-        "your",
-    ]
-)
-
-# Phrases that indicate the generator said the answer is not in the transcript.
-_REFUSAL_PHRASES = (
-    "cannot find it in the transcript",
-    "can't find it in the transcript",
-    "not in the transcript",
-    "not mentioned in the transcript",
-    "does not mention",
-    "do not mention",
-    "no information about",
-)
+# Backwards-compatible alias for the refusal-phrase list (now defined once in
+# yt_rag.groundedness alongside the full evaluator).
+_REFUSAL_PHRASES = EVASIVE_PHRASES
 
 
 @dataclass(frozen=True)
@@ -187,18 +132,17 @@ def verify_eval_set(eval_set: EvalSet) -> list[str]:
 # --- lexical generation metrics ------------------------------------------------
 
 
-def _content_tokens(text: str) -> list[str]:
-    return [t for t in _TOKEN_RE.findall(text.lower()) if t not in _STOPWORDS]
-
-
 def lexical_groundedness(answer: str, context_texts: list[str]) -> float:
     """Fraction of answer content tokens that appear in the context texts.
 
-    Cheap lexical proxy for faithfulness: 1.0 means every content word in the
-    answer is supported by retrieved chunk text; lower means the answer
-    contains unsupported tokens. NOT an LLM judge.
+    Cheap TOKEN-level lexical proxy, kept alongside the claim-level evaluator
+    in yt_rag.groundedness. 1.0 means every content word in the answer
+    appears somewhere in retrieved chunk text; lower means the answer
+    contains unsupported tokens. NOT an LLM judge, and NOT semantic truth:
+    a paraphrase with different words scores low, and word reuse does not
+    make a claim true.
     """
-    tokens = _content_tokens(answer)
+    tokens = content_tokens(answer)
     if not tokens:
         return 0.0
     context = " ".join(context_texts).lower()
@@ -207,7 +151,10 @@ def lexical_groundedness(answer: str, context_texts: list[str]) -> float:
 
 
 def refusal_detected(answer: str) -> bool:
-    """True if the answer indicates the transcript does not contain the answer."""
+    """True if the answer indicates the transcript does not contain the answer.
+
+    Alias for yt_rag.groundedness.evasion_detected (same phrase list).
+    """
     lowered = answer.lower()
     return any(phrase in lowered for phrase in _REFUSAL_PHRASES)
 
@@ -238,6 +185,22 @@ def _pipeline_for(
     return pipeline
 
 
+def _verdict_counts(rows: list[dict]) -> dict[str, int]:
+    """Count answer-level groundedness verdicts over the given rows."""
+    counts: dict[str, int] = {}
+    for r in rows:
+        v = r["groundedness"]["verdict"]
+        counts[v] = counts.get(v, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _claim_groundedness_mean(rows: list[dict]) -> float | None:
+    """Mean claim_groundedness over rows that have checkable claims."""
+    values = [r["groundedness"]["claim_groundedness"] for r in rows]
+    values = [v for v in values if v is not None]
+    return sum(values) / len(values) if values else None
+
+
 def run_retrieval_eval(
     eval_set: EvalSet,
     embedder: EmbeddingProvider,
@@ -266,6 +229,7 @@ def run_retrieval_eval(
                     first_gold_rank = rank
                     break
         answer = provider.generate(item.query, retrieved)
+        groundedness = evaluate_groundedness(answer, retrieved_texts)
         row = {
             "id": item.id,
             "query": item.query,
@@ -276,7 +240,8 @@ def run_retrieval_eval(
             "first_gold_rank": first_gold_rank,
             "answer": answer,
             "groundedness_lexical": lexical_groundedness(answer, retrieved_texts),
-            "refusal_detected": refusal_detected(answer),
+            "groundedness": groundedness.to_dict(),
+            "refusal_detected": groundedness.evasion_detected,
         }
         rows.append(row)
 
@@ -299,6 +264,8 @@ def run_retrieval_eval(
             )
             if present
             else 0.0,
+            "groundedness_verdict_counts": _verdict_counts(present),
+            "claim_groundedness_mean": _claim_groundedness_mean(present),
             "refusal_rate_on_absent": (
                 sum(1 for r in absent if r["refusal_detected"]) / len(absent)
             )
@@ -394,6 +361,8 @@ def run_full_eval(
         "eval_set_n": len(eval_set.items),
         "retrieval": result["retrieval"],
         "generation": result["generation"],
+        "groundedness_set": run_groundedness_set(),
+        "groundedness_limitations": GROUNDEDNESS_LIMITATIONS,
         "llm_qualitative_notes": maybe_llm_notes(eval_set) if with_llm_notes else None,
         "per_item": result["rows"],
     }
@@ -446,7 +415,14 @@ def main(argv: list[str] | None = None) -> int:
                 f"[{run['embedder']}] n={run['eval_set_n']} k={ret['k']} "
                 f"hit_rate@{ret['k']}={ret['hit_rate_at_k']:.3f} "
                 f"mrr@{ret['k']}={ret['mrr_at_k']:.3f} "
-                f"groundedness={gen['groundedness_lexical_mean']:.3f} (provider={gen['provider']})"
+                f"groundedness_lex={gen['groundedness_lexical_mean']:.3f} "
+                f"claims={gen['claim_groundedness_mean']} "
+                f"verdicts={gen['groundedness_verdict_counts']} "
+                f"(provider={gen['provider']})"
+            )
+            print(
+                f"  groundedness_set agreement={run['groundedness_set']['agreement']} "
+                f"({run['groundedness_set']['n_agree']}/{run['groundedness_set']['n_cases']})"
             )
             print(f"  run record: {path}")
         except Exception as exc:  # noqa: BLE001 - record ANY failure honestly, then fail
