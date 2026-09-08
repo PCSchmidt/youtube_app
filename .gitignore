@@ -33,7 +33,7 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Node (legacy reference only)
+# Node / frontend (ui/)
 node_modules/
 npm-debug.log*
 

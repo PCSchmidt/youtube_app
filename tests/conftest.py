@@ -1,7 +1,7 @@
 """Shared offline test fixtures.
 
-Tests use cached transcript .txt files (copied from the read-only legacy/
-reference), the deterministic HashEmbedder, and the StubProvider so the whole
+Tests use cached transcript .txt fixtures (originally salvaged from the
+pre-refactor app), the deterministic HashEmbedder, and the StubProvider so the whole
 suite runs with no network, no API keys, and no model downloads.
 """
 

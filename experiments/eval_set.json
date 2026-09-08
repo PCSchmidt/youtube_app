@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "description": "Hand-labeled Stage 2 eval set for the yt_rag RAG pipeline. Queries and gold spans were written by the author directly against the cached fixture transcripts (copied from the read-only legacy/ reference). No YouTube scraping. Every gold_span appears verbatim in its fixture text; gold_chunk_indices are the chunks (pinned 800/150 chunker, yt_rag.chunk) whose text contains the gold span verbatim. Items with absent=true have no answer in the transcript and are used only for the cannot-find/refusal check, excluded from retrieval metrics.",
+  "description": "Hand-labeled Stage 2 eval set for the yt_rag RAG pipeline. Queries and gold spans were written by the author directly against the cached fixture transcripts (salvaged from the pre-refactor app during the Stage 0 inventory). No YouTube scraping. Every gold_span appears verbatim in its fixture text; gold_chunk_indices are the chunks (pinned 800/150 chunker, yt_rag.chunk) whose text contains the gold span verbatim. Items with absent=true have no answer in the transcript and are used only for the cannot-find/refusal check, excluded from retrieval metrics.",
   "chunking_at_label_time": {
     "chunk_size_chars": 800,
     "overlap_chars": 150

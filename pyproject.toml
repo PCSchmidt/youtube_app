@@ -25,7 +25,6 @@ packages = ["src/yt_rag"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-extend-exclude = ["legacy"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

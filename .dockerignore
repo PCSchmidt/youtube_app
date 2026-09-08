@@ -26,8 +26,6 @@ model_cache/
 *.faiss
 experiments/runs/
 
-# Legacy reference and sibling/parent files not needed in the image
-legacy/
 node_modules/
 
 # Docs and tooling not needed at runtime

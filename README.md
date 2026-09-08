@@ -66,8 +66,8 @@ therefore uses a deterministic hash-based `HashEmbedder` (same 384-dim shape,
 L2-normalized, exactly reproducible) plus the `StubProvider`. The real pinned
 model is wired into the production path (CLI `--real-embedder`, or instantiate
 `SentenceTransformerEmbedder`) and is exercised by the developer manually; the
-test suite never downloads it. Cached transcript `.txt` fixtures (copied from
-the read-only `legacy/` reference) exercise ingestion-file, chunking,
+test suite never downloads it. Cached transcript `.txt` fixtures (salvaged
+from the pre-refactor app during the Stage 0 inventory) exercise ingestion-file, chunking,
 embedding, indexing, retrieval, and generation offline.
 
 ## Results

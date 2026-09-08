@@ -1,3 +1,5 @@
+> **Historical document (2026-09-08):** the `legacy/` folder this inventory describes was removed from the working tree after the redesign was published. Its contents remain recoverable from this repository's git history. The text below is preserved as the Stage 0 audit record.
+
 # INVENTORY.md — youtube_app legacy review
 
 Stage 0 inventory of `legacy/` (read-only reference, dormant since Sep 2024) mapped
