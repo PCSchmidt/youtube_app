@@ -1,0 +1,13 @@
+# Local scrape config for the yt_rag observability stack (Stage 6).
+# Scrapes the FastAPI app's stdlib Prometheus exposition endpoint over the
+# compose network (service name, not the host-mapped port). In-process
+# counters reset on app restart; retention is capped at 2d.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: yt-rag
+    metrics_path: /metrics/prometheus
+    static_configs:
+      - targets: ["yt-rag:8000"]

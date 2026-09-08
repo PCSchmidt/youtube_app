@@ -111,9 +111,10 @@ question-length histogram, provider-mode gauge) with endpoint-only bounded
 labels; they mirror the JSON snapshot semantics but are NOT answer quality. The retrieval-quality
 signal is a PROXY (empty-result rate, top score), not a quality measure:
 Stage 2 groundedness is a lexical heuristic, NOT semantic truth, and the
-qualitative LLM review is still open. No new dependencies, no extra containers, no dashboards, no alerting;
-the optional Prometheus/Grafana box is left unchecked because nothing was
-stood up.
+qualitative LLM review is still open. No new Python dependencies and no alerting. Phase 6 added the local
+Prometheus/Grafana compose stack (checked above): scraping, 2d ephemeral
+TSDB, and a provisioned dashboard are now stood up. Still local-only, still
+in-process counters, still not a quality measure.
 
 **Acceptance:** A reviewer can see how the app is observed and what signals would indicate a problem.
 

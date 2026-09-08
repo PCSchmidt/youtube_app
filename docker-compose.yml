@@ -1,10 +1,56 @@
+# Stage 6 local observability stack: FastAPI app + Prometheus + Grafana.
+# All host ports are env-overridable so sibling apps can run in parallel:
+#   API_PORT=8000 PROMETHEUS_PORT=9091 GRAFANA_PORT=3001 docker compose up -d
+# Prometheus scrapes the app over the compose network (not the host mapping),
+# so the app's internal port is fixed at 8000 regardless of API_PORT.
+# No secrets, no cloud services, no external monitoring. One named volume,
+# grafana-data, persists dashboard/UI state (intentional and documented in
+# README "Operational notes"); Prometheus storage is intentionally ephemeral
+# because yt_rag_* metrics are in-process counters that reset on restart.
 services:
   yt-rag:
     build: .
     image: yt-rag:stage3
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     # Deliberately minimal: no secrets, no env_file, no volumes of model
     # caches. The offline path (health + fixture-backed /chat smoke) needs
     # nothing else; the networked real-model path is documented in README.
     restart: "no"
+
+  prometheus:
+    image: prom/prometheus:v3.9.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=2d
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "${PROMETHEUS_PORT:-9091}:9090"
+    depends_on:
+      - yt-rag
+    restart: "no"
+
+  grafana:
+    image: grafana/grafana-oss:12.3.1
+    environment:
+      # Defaults kept (admin/admin) for local-only use; noted in README.
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_DEFAULT_THEME: dark
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./provisioning:/etc/grafana/provisioning:ro
+      # Committed dashboard JSON, wired declaratively (no UI import needed).
+      - ./dashboards:/etc/grafana/dashboards:ro
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    depends_on:
+      - prometheus
+    restart: "no"
+
+volumes:
+  # Intentional persistence: Grafana UI state + dashboard provisioning cache.
+  # Prometheus and app data are deliberately NOT persisted (metrics are
+  # in-process counters; see the comment at the top of this file).
+  grafana-data:

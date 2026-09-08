@@ -1,0 +1,16 @@
+# Auto-load dashboard JSON files from /etc/grafana/dashboards (mounted
+# read-only from ./dashboards in the repo).
+apiVersion: 1
+
+providers:
+  - name: yt-rag-dashboards
+    orgId: 1
+    folder: yt_rag
+    folderUid: yt-rag-folder
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: false

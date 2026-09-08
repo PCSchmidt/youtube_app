@@ -185,9 +185,11 @@ no multi-user serving, no persisted metrics, no alerting.
   boundaries can split a speaker turn.
 - youtube-transcript-api depends on YouTube's transcript availability; videos
   without captions cannot be ingested.
-- **Stage 5 observability is local and shallow, and its retrieval-quality
+- **Stage 5/6 observability is local and shallow, and its retrieval-quality
   signal is a PROXY.** Metrics are in-process counters that reset on restart;
-  there is no metrics store, no Prometheus/Grafana, and no alerting. The
+  there is no alerting and no persistent metrics store (the Phase 6
+  Prometheus TSDB keeps 2 days of these same counters; see "Prometheus +
+  Grafana" in Operational notes). The
   "retrieval-quality proxy" (empty-result rate, top score) shows whether
   retrieval returned anything and how confident the vector search was — it is
   not answer quality. Groundedness remains a lexical heuristic (NOT semantic
@@ -598,3 +600,43 @@ the Dockerfile), not a host path. Windows Git Bash notes:
 
 After `docker compose down` the container and the published port are gone; the
 image `yt-rag:stage3` stays cached locally. Nothing is pushed anywhere.
+
+### Prometheus + Grafana (Stage 6 local observability stack)
+
+`docker compose up -d` now starts three services. All host ports are
+env-overridable so sibling projects can run in parallel:
+
+| Service | Image | Host port (default) | Override |
+| --- | --- | --- | --- |
+| yt-rag (FastAPI) | `yt-rag:stage3` (built) | 8000 | `API_PORT` |
+| prometheus | `prom/prometheus:v3.9.1` | 9091 | `PROMETHEUS_PORT` |
+| grafana | `grafana/grafana-oss:12.3.1` | 3001 | `GRAFANA_PORT` |
+
+- Prometheus scrapes `http://yt-rag:8000/metrics/prometheus` every 5s over the
+  compose network (`prometheus.yml` in the repo; the host `API_PORT` mapping
+  does not affect scraping). TSDB retention is capped at 2d and storage is
+  **intentionally ephemeral**: the `yt_rag_*` metrics are in-process counters
+  that reset on app restart, so a persistent TSDB would show fake continuity.
+- Grafana auto-provisions (no UI import, no manual clicks):
+  - datasource: `provisioning/datasources/prometheus.yml` (Prometheus, uid
+    `yt-rag-prom`, proxying `http://prometheus:9090`);
+  - dashboard: `dashboards/yt_rag_overview.json` (uid `yt-rag-overview`), loaded
+    via `provisioning/dashboards/dashboards.yml`.
+- Verified URLs once the stack is up:
+  - dashboard: `http://localhost:3001/d/yt-rag-overview`
+  - Prometheus targets: `http://localhost:9091/api/v1/targets`
+- Grafana login defaults to `admin`/`admin` (local-only stack; the UI asks to
+  change it on first interactive login, the HTTP API accepts the defaults).
+
+**Persistence (documented, intentional).** Exactly one named volume,
+`grafana-data` (mounted at `/var/lib/grafana`), keeps Grafana UI state across
+`compose down`/`up`. Prometheus and app data have **no** volumes, for the
+reasons above. `docker compose down` removes containers but keeps
+`grafana-data`; `docker compose down -v` would delete it.
+
+**Scope honesty.** The dashboard's retrieval-quality panels (empty-result rate,
+mean top score, mean retrieved chunk count) are labeled PROXY in the dashboard
+itself: they are not answer quality. With the default offline path, retrieval
+returns up to `top_k` chunks whenever the index is non-empty, so the
+empty-result series legitimately has no data in a healthy run; the panel shows
+its "No data" state rather than a misleading zero-rate line.
