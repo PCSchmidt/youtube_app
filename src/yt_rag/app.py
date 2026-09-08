@@ -13,11 +13,18 @@ from __future__ import annotations
 
 import time
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel, Field
 
 from yt_rag.errors import IngestError
-from yt_rag.observability import Metrics, get_logger, log_request, new_request_id
+from yt_rag.observability import (
+    PROM_ERROR_CLASSES,
+    Metrics,
+    PrometheusMetrics,
+    get_logger,
+    log_request,
+    new_request_id,
+)
 from yt_rag.pipeline import RAGPipeline
 
 
@@ -47,6 +54,7 @@ def create_app(
     exercise the empty-result proxy. The production path ignores it.
     """
     metrics = Metrics()
+    prom = PrometheusMetrics()
     logger = get_logger()
 
     def new_pipeline() -> RAGPipeline:
@@ -60,6 +68,9 @@ def create_app(
     def health() -> dict:
         started = time.perf_counter()
         payload = {"status": "ok"}
+        prom.observe_request(
+            endpoint="/health", method="GET", status=200, duration_s=time.perf_counter() - started
+        )
         log_request(
             logger,
             request_id=new_request_id(),
@@ -82,6 +93,29 @@ def create_app(
             total_ms=round((time.perf_counter() - started) * 1000, 2),
         )
         return payload
+
+    @app.get(
+        "/metrics/prometheus",
+        response_class=Response,
+        responses={200: {"content": {"text/plain; version=0.0.4; charset=utf-8": {}}}},
+    )
+    def metrics_prometheus() -> Response:
+        """Prometheus text exposition of the generic families.
+
+        Rendered before recording itself, so this scrape does not appear in
+        its own output (same convention as /metrics)."""
+        started = time.perf_counter()
+        body = prom.render()
+        prom.observe_request(
+            endpoint="/metrics/prometheus",
+            method="GET",
+            status=200,
+            duration_s=time.perf_counter() - started,
+        )
+        return Response(
+            content=body,
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
 
     @app.post("/chat", response_model=ChatResponse)
     def chat(req: ChatRequest) -> ChatResponse:
@@ -113,6 +147,19 @@ def create_app(
             # One structured JSON line per request. Never logs the question,
             # the answer, retrieved text, or any API key: counts/scores/ids only.
             total_ms = round((time.perf_counter() - started) * 1000, 2)
+            prom.observe_request(
+                endpoint="/chat",
+                method="POST",
+                status=status,
+                duration_s=total_ms / 1000,
+            )
+            # Keep Prometheus labels bounded: unexpected exception classes
+            # collapse to "Unhandled" (same defensive fallback as the log line).
+            prom_error_class = error_class or "Unhandled"
+            if prom_error_class not in PROM_ERROR_CLASSES:
+                prom_error_class = "Unhandled"
+            if error_class is not None:
+                prom.observe_error(endpoint="/chat", method="POST", error_class=prom_error_class)
             timings = getattr(pipeline, "last_timings", None) or {}
             retrieval_s = timings.get("retrieval_s")
             generation_s = timings.get("generation_s")

@@ -90,12 +90,21 @@ audit found three optional variables and no hardcoded secrets.
 
 - [x] Structured logging of requests, retrieval latency, and generation latency.
 - [x] Metrics endpoint exposing: request count, latency percentiles, error rate, retrieval quality proxy (e.g., empty-result rate).
-- [ ] Optional: Prometheus/Grafana dashboard.
+- [x] Prometheus-compatible exposition endpoint: `GET /metrics/prometheus`
+  (text exposition v0.0.4, stdlib-only writer, no new dependency). Generic
+  families only — `yt_rag_requests_total`, `yt_rag_errors_total`,
+  `yt_rag_request_latency_seconds` histogram, `yt_rag_up` — with bounded
+  route-template/status/error-class labels; the JSON `GET /metrics` contract
+  is unchanged. In-process and reset on restart, like the JSON counters.
+- [ ] Optional: Prometheus/Grafana dashboard (still unchecked: no scraper,
+  no storage, no dashboards are stood up — only the exposition text).
 - [x] Document "what could degrade" (e.g., transcript format changes, embedding model drift, index staleness).
 
 Stage 5 note (scope and honesty): observability is local and in-process — one
-JSON log line per request (stdlib logging, stdout) and a `GET /metrics`
-endpoint of plain process counters that reset on restart. The retrieval-quality
+JSON log line per request (stdlib logging, stdout), a `GET /metrics`
+endpoint of plain process counters that reset on restart, and (Phase 2) a
+`GET /metrics/prometheus` text-exposition endpoint written by hand with the
+stdlib only — still in-process, still no scraper or storage. The retrieval-quality
 signal is a PROXY (empty-result rate, top score), not a quality measure:
 Stage 2 groundedness is a lexical heuristic, NOT semantic truth, and the
 qualitative LLM review is still open. No new dependencies, no extra containers, no dashboards, no alerting;
