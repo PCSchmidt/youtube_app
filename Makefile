@@ -5,7 +5,7 @@ else
     VENV_PY := .venv/bin/python
 endif
 
-.PHONY: setup test lint format eval clean
+.PHONY: setup test lint format eval clean ui ui-build
 
 setup:
 	python -m venv .venv
@@ -29,6 +29,19 @@ format:
 # is set, also records qualitative LLM notes. Run records land in experiments/runs/.
 eval:
 	$(VENV_PY) -m yt_rag.eval --embedder both --llm-notes
+
+# Phase 4 UI (React + Vite + TypeScript under ui/). Dev server proxies
+# /health /metrics /chat to the FastAPI backend; API_PORT overrides 8000.
+ui:
+	npm --prefix ui install --no-audit --no-fund
+	npm --prefix ui run dev
+
+ui-build:
+	npm --prefix ui install --no-audit --no-fund
+	npm --prefix ui run build
+
+ui-test:
+	npm --prefix ui run test
 
 clean:
 	rm -rf .venv .pytest_cache .ruff_cache dist build *.egg-info

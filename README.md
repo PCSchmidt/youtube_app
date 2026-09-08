@@ -546,6 +546,30 @@ were audited for Stage 4 and deliberately left in code: they are reproducibility
 pins, not secrets or host-specific settings, and `config.py` contains no
 hardcoded credentials.
 
+### UI (Phase 4)
+
+A React + Vite + TypeScript workspace lives under `ui/`. It is an addition to
+the FastAPI app, not a replacement: the API (`/health`, `/metrics`, `/chat`)
+is unchanged and the Python package stays independently usable.
+
+```bash
+make ui          # npm install + vite dev server; proxies /health /metrics /chat to localhost:8000 (override with API_PORT)
+make ui-build    # production build into ui/dist
+make ui-test     # offline vitest + Testing Library suite (mocked fetch, no backend)
+```
+
+- Charting library: **recharts** — the recognized React charting option,
+  fully client-side, no hosted service, small API surface.
+- DEMO mode: the UI ships a bundled pre-rendered sample (clearly labelled
+  DEMO) so it is demonstrable with no backend and no network; in that mode it
+  never calls `fetch`.
+- Provider mode is read live from the `yt_rag_provider_mode` gauge on
+  `GET /metrics/prometheus`.
+- Groundedness: `/chat` does not return a groundedness field, so the UI shows
+  a clearly labelled client-side lexical-overlap heuristic ("Evidence support
+  (UI-side heuristic)"). It is NOT the backend's deterministic groundedness
+  evaluator.
+
 ### Deployment runbook (local Docker Compose, verified on branch `stage4`)
 
 ```
