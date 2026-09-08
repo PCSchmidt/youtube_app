@@ -72,39 +72,86 @@ embedding, indexing, retrieval, and generation offline.
 
 ## Results
 
-Stage 2 pre-tuning baselines, measured on a **14-item hand-labeled eval set**
-(12 answerable items with a gold span literally present in the fixture
-transcript, plus 2 items whose answer is absent from the transcript) over the
-two cached fixture transcripts. Gold chunk indices are the chunks (pinned
-800/150 chunker) containing the gold span verbatim. The set is small and labeled
-by the project author, so read these as baselines to improve on, not benchmarks.
-Full run records: `experiments/runs/`; log: `experiments/baseline_log.md`;
-reproduce with `make eval` (commit `ceb5ecf`, 2026-09-07).
+All numbers below come from the same two offline eval runs (commit `a8358d5`,
+2026-09-08; run records in `experiments/runs/`, log:
+`experiments/baseline_log.md`, reproduce with `make eval`), measured on a
+**14-item hand-labeled eval set** (12 answerable items with a gold span
+literally present in the fixture transcript, plus 2 items whose answer is
+absent from the transcript) over the two cached fixture transcripts. The set
+is small and labeled by the project author, so read these as baselines to
+improve on, not benchmarks.
 
-| Embedder                  | hit rate@4    | MRR@4 | Groundedness (lexical) | Notes                                               |
-| ------------------------- | ------------- | ----- | ---------------------- | --------------------------------------------------- |
-| all-MiniLM-L6-v2 (pinned) | 0.917 (11/12) | 0.653 | 0.907 (STUB)           | quality baseline                                    |
-| HashEmbedder              | 0.917 (11/12) | 0.660 | 0.905 (STUB)           | deterministic smoke, **NOT a quality measure** |
+### Retrieval quality (hit rate@4 / MRR@4)
 
-How to read this:
+| Embedder                  | hit rate@4    | MRR@4 |
+| ------------------------- | ------------- | ----- |
+| all-MiniLM-L6-v2 (pinned) | 0.917 (11/12) | 0.653 |
+| HashEmbedder              | 0.917 (11/12) | 0.660 |
 
 - **hit rate@4** is the fraction of the 12 answerable queries whose top-4
   retrieved chunks include a gold chunk; **MRR@4** is the mean reciprocal rank
   of the first gold chunk. The two runs retrieve different chunk lists per
   query; the equal hit rates are a coincidence at this sample size.
-- **Groundedness is STUB**, and both runs used `StubProvider` for generation.
-  The stub is extractive — it echoes retrieved sentences — so high lexical
-  overlap with retrieved chunks is expected by construction. It measures that
-  answers are built from retrieved text, not that an LLM answers well.
-- **Refusal on the 2 absent-answer questions is 0.0** in both runs:
-  `StubProvider` cannot say "cannot find it in the transcript". Measuring
-  refusal requires an LLM provider.
-- **No qualitative LLM review was run**: `OPENAI_COMPATIBLE_API_KEY` was not
-  set on the eval machine. `make eval` records qualitative LLM notes
-  automatically when the key is present.
 - **These are pre-tuning baselines.** Chunk size/overlap (800/150), top-k (4),
   similarity metric (cosine via IndexFlatIP), and the embedding model are the
   Stage 1 values, unchanged. No tuning has happened yet.
+
+### Groundedness evaluation (deterministic, lexical — NOT semantic truth)
+
+Since Phase 1, `src/yt_rag.groundedness` classifies each generated answer
+against the retrieved context it was grounded on: it extracts claim sentences
+and marks each one `supported` (≥ 0.6 of its content words appear in the
+context AND every number in the claim appears verbatim in the context) or
+`unsupported`; the answer is `empty` (no text), `evasive` (refusal phrase,
+e.g. "cannot find it in the transcript"), `supported`,
+`partially_supported`, or `unsupported`. The evaluator is fully deterministic
+and offline, and is replayed against a committed labeled set
+(`experiments/groundedness_set.json`, 9 cases) in every run record.
+
+| Embedder                  | Generation  | Verdicts (12 present items)        | Claim groundedness | Labeled-set agreement | Refusal on absent |
+| ------------------------- | ----------- | ---------------------------------- | ------------------ | --------------------- | ----------------- |
+| all-MiniLM-L6-v2 (pinned) | StubProvider | 12 supported / 0 partially / 0 unsupported | 1.0 | 9/9 | 0.0 |
+| HashEmbedder              | StubProvider | 12 supported / 0 partially / 0 unsupported | 1.0 | 9/9 | 0.0 |
+
+What this DOES measure:
+
+- whether answer text is built from retrieved context (claim-level lexical +
+  numeric support), with empty/refusal detection and a fabricated-number
+  signal (a number in a claim that is absent from the context);
+- that the evaluator itself matches its documented rules on the labeled set
+  (9/9 agreement).
+
+What this does NOT measure:
+
+- **Semantic truth.** These are lexical heuristics, NOT a factuality or
+  correctness judge: word reuse does not make a claim true (negation, swapped
+  entities, and re-ordered claims can all score `supported`), and a true
+  paraphrase with different words can score `unsupported`.
+- **Contradictions beyond missing numbers/words.** "The limit is 220
+  characters" is `supported` by context mentioning 220 even if the truth is
+  500; only tokens *absent* from the context are flagged.
+- **Question relevance**, whether the answer addresses what was asked.
+- **LLM answer quality.** All generation here is `StubProvider`, an
+  extractive echo of retrieved chunks, so high supportedness is expected BY
+  CONSTRUCTION. These numbers say nothing about LLM answer quality.
+- **Refusal behavior.** On the 2 absent-answer questions the refusal rate is
+  0.0 because `StubProvider` cannot refuse; its echoes score "supported" even
+  though the answer is useless. Measuring refusal requires an LLM provider.
+
+### Qualitative review (open)
+
+**No qualitative LLM review has been run.** `OPENAI_COMPATIBLE_API_KEY` was
+not set on the eval machine. `make eval --llm-notes` records qualitative LLM
+notes automatically when the key is present. Until then, generation quality
+is unjudged by anything semantic, and the Stage 2 qualitative-review box stays
+open in `ROADMAP.md`.
+
+### Production limitations
+
+See **Limitations** below for the full list (small hand-labeled eval set, no
+tuning yet, flat O(n) retrieval over one transcript, no LLM review, shallow
+in-process observability). Nothing here is production-ready: no auth, no TLS,
+no multi-user serving, no persisted metrics, no alerting.
 
 ## Limitations
 
@@ -117,9 +164,13 @@ How to read this:
   bag-of-words hash, not semantically meaningful; it exists so `make test`
   stays offline and the eval harness is exercised deterministically. Its
   baseline numbers are recorded for reproducibility only.
-- **Stub groundedness is not LLM quality.** All groundedness numbers above were
-  produced by `StubProvider`, an extractive stub that echoes retrieved
-  passages. They show the answer is built from retrieved text, nothing more.
+- **Groundedness numbers are lexical heuristics, not LLM quality.** All
+  groundedness numbers above were produced by `StubProvider`, an extractive
+  stub that echoes retrieved passages — high supportedness is expected by
+  construction. The Phase 1 claim-level evaluator (`src/yt_rag.groundedness`)
+  is deterministic and offline, but its labels are NOT semantic truth: no
+  contradiction detection beyond numbers/words absent from the context, no
+  question-relevance check, and true paraphrases can score unsupported.
 - **No tuning has happened yet.** Every number in Results is a pre-tuning
   baseline of the Stage 1 pipeline unchanged (800/150, k=4, cosine,
   all-MiniLM-L6-v2). No optimization informed these numbers, and none has been
@@ -139,8 +190,9 @@ How to read this:
   there is no metrics store, no Prometheus/Grafana, and no alerting. The
   "retrieval-quality proxy" (empty-result rate, top score) shows whether
   retrieval returned anything and how confident the vector search was — it is
-  not answer quality. Stage 2 groundedness remains a stub and the qualitative
-  LLM review is still open; nothing here relabels that.
+  not answer quality. Groundedness remains a lexical heuristic (NOT semantic
+  truth) and the qualitative LLM review is still open; nothing here relabels
+  that.
 - Requires Python 3.12 or newer (the pinned lock resolved numpy 2.5.3, which
   dropped support for 3.11; `pyproject.toml` and CI were updated to match).
 
@@ -377,8 +429,9 @@ reviewer can see by curling the running container, nothing more.
 `mean_top_score` (mean best cosine score). These are **proxies for retrieval
 health, not quality measures**: a nonzero retrieval with a low top score says
 the vector search found nothing similar; it says nothing about answer
-correctness. Stage 2's groundedness metric is a STUB and the qualitative LLM
-review is open — Stage 5 does not change or relabel either.
+correctness. Stage 2's groundedness metric is a deterministic lexical
+heuristic (NOT semantic truth) and the qualitative LLM review is open —
+Stage 5 does not change or relabel either.
 
 **What could degrade, and the signal that would show it:**
 

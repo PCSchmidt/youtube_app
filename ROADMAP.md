@@ -33,7 +33,15 @@ A reviewer can clone this repo, run one command, and see a working RAG app with 
 
 - [x] Build a small labeled eval set (queries + expected relevant chunks/answers).
 - [x] Retrieval metrics: hit rate, mean reciprocal rank (MRR).
-- [ ] Generation metrics: faithfulness/groundedness check, plus a qualitative review.
+- [x] Generation metrics: deterministic groundedness check — claim-level
+  supported/partially-supported/unsupported verdicts plus empty/evasive
+  detection (`src/yt_rag.groundedness`), replayed against a committed labeled
+  set (`experiments/groundedness_set.json`). LEXICAL HEURISTICS, NOT semantic
+  truth; see the limitations in `experiments/baseline_log.md` and the module
+  docstring.
+- [ ] Qualitative review: a qualitative LLM review of generated answers is
+  still open. It requires `OPENAI_COMPATIBLE_API_KEY` at eval time; the gap is
+  recorded, not faked (`yt_rag.eval.maybe_llm_notes`).
 - [x] Record baseline numbers in an `experiments/` run log with date, config, and results.
 
 **Acceptance:** Baseline metrics are recorded and reproducible. No tuning happens before this.
@@ -89,8 +97,8 @@ Stage 5 note (scope and honesty): observability is local and in-process — one
 JSON log line per request (stdlib logging, stdout) and a `GET /metrics`
 endpoint of plain process counters that reset on restart. The retrieval-quality
 signal is a PROXY (empty-result rate, top score), not a quality measure:
-Stage 2 groundedness is still a stub and the qualitative LLM review is still
-open. No new dependencies, no extra containers, no dashboards, no alerting;
+Stage 2 groundedness is a lexical heuristic, NOT semantic truth, and the
+qualitative LLM review is still open. No new dependencies, no extra containers, no dashboards, no alerting;
 the optional Prometheus/Grafana box is left unchecked because nothing was
 stood up.
 
@@ -116,7 +124,7 @@ command with `--real-embedder` and is optional AND networked. Runbook: README Op
 notes; executed incident with verbatim outputs: `experiments/incident.md`
 (top_score 0.257 -> 0.041 on a wrong-fixture refresh, rollback to v1, grounded query
 restored, and a failed identity validation shown to leave the pointer untouched).
-Stage 2's groundedness remains a stub and the qualitative LLM review stays open — Stage 6
+Stage 2's groundedness remains a lexical heuristic (NOT semantic truth) and the qualitative LLM review stays open — Stage 6
 does not touch either.
 
 **Acceptance:** The maintain loop is documented and executable, not just described.

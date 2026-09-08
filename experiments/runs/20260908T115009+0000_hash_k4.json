@@ -1,0 +1,521 @@
+{
+  "schema_version": 1,
+  "date_utc": "2026-09-08T11:50:09+00:00",
+  "git_commit": "a8358d5",
+  "embedder": "HashEmbedder",
+  "embedder_requested": "hash",
+  "chunk_config": {
+    "chunk_size_chars": 800,
+    "overlap_chars": 150
+  },
+  "top_k": 4,
+  "eval_set_n": 14,
+  "retrieval": {
+    "k": 4,
+    "n_scored": 12,
+    "hit_rate_at_k": 0.9166666666666666,
+    "mrr_at_k": 0.6597222222222222
+  },
+  "generation": {
+    "provider": "StubProvider",
+    "is_llm": false,
+    "groundedness_lexical_mean": 0.9053815217423543,
+    "groundedness_verdict_counts": {
+      "supported": 12
+    },
+    "claim_groundedness_mean": 1.0,
+    "refusal_rate_on_absent": 0.0
+  },
+  "groundedness_set": {
+    "path": "experiments/groundedness_set.json",
+    "n_cases": 9,
+    "n_agree": 9,
+    "agreement": 1.0,
+    "limitations": "lexical/heuristic claim-overlap labels, NOT semantic truth: coverage of context words does not prove a claim is correct, paraphrases can score unsupported, and only numbers/words ABSENT from the context are flagged (no contradiction detection); question relevance is not measured",
+    "per_case": [
+      {
+        "id": "sup-01",
+        "category": "supported",
+        "expected_verdict": "supported",
+        "verdict": "supported",
+        "n_claims": 1,
+        "n_supported": 1,
+        "n_unsupported": 0,
+        "ok": true
+      },
+      {
+        "id": "sup-02",
+        "category": "supported",
+        "expected_verdict": "supported",
+        "verdict": "supported",
+        "n_claims": 1,
+        "n_supported": 1,
+        "n_unsupported": 0,
+        "ok": true
+      },
+      {
+        "id": "par-01",
+        "category": "partially_supported",
+        "expected_verdict": "partially_supported",
+        "verdict": "partially_supported",
+        "n_claims": 2,
+        "n_supported": 1,
+        "n_unsupported": 1,
+        "ok": true
+      },
+      {
+        "id": "uns-01",
+        "category": "unsupported",
+        "expected_verdict": "unsupported",
+        "verdict": "unsupported",
+        "n_claims": 1,
+        "n_supported": 0,
+        "n_unsupported": 1,
+        "ok": true
+      },
+      {
+        "id": "con-01",
+        "category": "contradiction_suspected",
+        "expected_verdict": "unsupported",
+        "verdict": "unsupported",
+        "n_claims": 1,
+        "n_supported": 0,
+        "n_unsupported": 1,
+        "ok": true
+      },
+      {
+        "id": "mis-01",
+        "category": "missing_context",
+        "expected_verdict": "unsupported",
+        "verdict": "unsupported",
+        "n_claims": 1,
+        "n_supported": 0,
+        "n_unsupported": 1,
+        "ok": true
+      },
+      {
+        "id": "eva-01",
+        "category": "evasive",
+        "expected_verdict": "evasive",
+        "verdict": "evasive",
+        "n_claims": 0,
+        "n_supported": 0,
+        "n_unsupported": 0,
+        "ok": true
+      },
+      {
+        "id": "eva-02",
+        "category": "evasive",
+        "expected_verdict": "evasive",
+        "verdict": "evasive",
+        "n_claims": 0,
+        "n_supported": 0,
+        "n_unsupported": 0,
+        "ok": true
+      },
+      {
+        "id": "emp-01",
+        "category": "empty",
+        "expected_verdict": "empty",
+        "verdict": "empty",
+        "n_claims": 0,
+        "n_supported": 0,
+        "n_unsupported": 0,
+        "ok": true
+      }
+    ]
+  },
+  "groundedness_limitations": "lexical/heuristic claim-overlap labels, NOT semantic truth: coverage of context words does not prove a claim is correct, paraphrases can score unsupported, and only numbers/words ABSENT from the context are flagged (no contradiction detection); question relevance is not measured",
+  "llm_qualitative_notes": null,
+  "per_item": [
+    {
+      "id": "teal-01",
+      "query": "how do I write a professional summary for my LinkedIn about section with ChatGPT",
+      "fixture": "teal_chatgpt_linkedin.txt",
+      "absent": false,
+      "gold_chunk_indices": [
+        2
+      ],
+      "retrieved_chunk_indices": [
+        1,
+        2,
+        0,
+        5
+      ],
+      "first_gold_rank": 2,
+      "answer": "[stub answer, grounded in 4 retrieved chunk(s)]\nRelevant transcript passage (chunk 1):\nchannel check it out or you can hit the card at the top right of the screen but for this video we're talking about chat GPT so let's do it the first area of our LinkedIn profile we want to work on is right here our about section you can think of this as kind of a professional intro a bit of a career summary just a nice paragraph that somebody can read really quick and get an idea of your career who you are as a professional and read some of your top achievements our about section right now isn't half bad we've got some metrics in there and we have some achievements but it's on the short side and I think we can definitely do better so let's hop over to chatgpt our prompt in chat GPT is going to be write a professional summary using my resume for reference include keywords and metrics and",
+      "groundedness_lexical": 0.8947368421052632,
+      "groundedness": {
+        "verdict": "supported",
+        "evasion_detected": false,
+        "n_claims": 1,
+        "n_supported": 1,
+        "n_unsupported": 0,
+        "claim_groundedness": 1.0,
+        "unsupported_tokens": []
+      },
+      "refusal_detected": false
+    },
+    {
+      "id": "teal-02",
+      "query": "how many characters can a LinkedIn headline be",
+      "fixture": "teal_chatgpt_linkedin.txt",
+      "absent": false,
+      "gold_chunk_indices": [
+        5
+      ],
+      "retrieved_chunk_indices": [
+        5,
+        1,
+        4,
+        0
+      ],
+      "first_gold_rank": 1,
+      "answer": "[stub answer, grounded in 4 retrieved chunk(s)]\nRelevant transcript passage (chunk 5):\nto your headline and use at least 100 characters so now over in chatbt let's give it a prompt to generate a new LinkedIn headline we want to say write a LinkedIn headline using my resume for reference include keywords from my resume and keep it shorter than 220 characters 220 characters is the max limit for your LinkedIn headline so you want to use as much as possible let's go back to our teal resume Builder let's highlight our whole resume again right click copy back to chat GPT right click paste hit enter and wait for our results looking at the results brand marketing Pro 13 years experience SEO content and growth marketing and now we're on to achievements 25 plus brand awareness 20 conversion boost and now we have some certification in education SQL a masters in marketing management",
+      "groundedness_lexical": 0.9065420560747663,
+      "groundedness": {
+        "verdict": "supported",
+        "evasion_detected": false,
+        "n_claims": 1,
+        "n_supported": 1,
+        "n_unsupported": 0,
+        "claim_groundedness": 1.0,
+        "unsupported_tokens": []
+      },
+      "refusal_detected": false
+    },
+    {
+      "id": "teal-03",
+      "query": "what should the ChatGPT prompt for a new LinkedIn headline include",
+      "fixture": "teal_chatgpt_linkedin.txt",
+      "absent": false,
+      "gold_chunk_indices": [
+        5
+      ],
+      "retrieved_chunk_indices": [
+        5,
+        9,
+        10,
+        2
+      ],
+      "first_gold_rank": 1,
+      "answer": "[stub answer, grounded in 4 retrieved chunk(s)]\nRelevant transcript passage (chunk 5):\nto your headline and use at least 100 characters so now over in chatbt let's give it a prompt to generate a new LinkedIn headline we want to say write a LinkedIn headline using my resume for reference include keywords from my resume and keep it shorter than 220 characters 220 characters is the max limit for your LinkedIn headline so you want to use as much as possible let's go back to our teal resume Builder let's highlight our whole resume again right click copy back to chat GPT right click paste hit enter and wait for our results looking at the results brand marketing Pro 13 years experience SEO content and growth marketing and now we're on to achievements 25 plus brand awareness 20 conversion boost and now we have some certification in education SQL a masters in marketing management",
+      "groundedness_lexical": 0.9065420560747663,
+      "groundedness": {
+        "verdict": "supported",
+        "evasion_detected": false,
+        "n_claims": 1,
+        "n_supported": 1,
+        "n_unsupported": 0,
+        "claim_groundedness": 1.0,
+        "unsupported_tokens": []
+      },
+      "refusal_detected": false
+    },
+    {
+      "id": "teal-04",
+      "query": "what prompt do I use to write resume achievements with ChatGPT",
+      "fixture": "teal_chatgpt_linkedin.txt",
+      "absent": false,
+      "gold_chunk_indices": [
+        7
+      ],
+      "retrieved_chunk_indices": [
+        7,
+        8,
+        4,
+        9
+      ],
+      "first_gold_rank": 1,
+      "answer": "[stub answer, grounded in 4 retrieved chunk(s)]\nRelevant transcript passage (chunk 7):\nmuch one to one with the work experience section of your resume so let's use Chad gbt to write some new work achievements so over here in chatgpt our prompt is going to be right three resume achievements for a marketing coordinator include metrics and keywords now this is where things get kind of tricky after our prompt you want to go and grab the job description of the job that you were hired for or find a job posting that is live in a very similar position and what you're going to do is you're going to copy the whole thing here right click copy back to chat gbt right click pay hit enter let the results think for a bit and now we have our achievements the thing here is it's very unlikely that the success metrics the exact number is going to be accurate to your specific instance what you",
+      "groundedness_lexical": 0.8921568627450981,
+      "groundedness": {
+        "verdict": "supported",
+        "evasion_detected": false,
+        "n_claims": 1,
+        "n_supported": 1,
+        "n_unsupported": 0,
+        "claim_groundedness": 1.0,
+        "unsupported_tokens": []
+      },
+      "refusal_detected": false
+    },
+    {
+      "id": "teal-05",
+      "query": "what should I do if ChatGPT invents numbers in my work achievements",
+      "fixture": "teal_chatgpt_linkedin.txt",
+      "absent": false,
+      "gold_chunk_indices": [
+        7,
+        8
+      ],
+      "retrieved_chunk_indices": [
+        10,
+        6,
+        4,
+        7
+      ],
+      "first_gold_rank": 4,
+      "answer": "[stub answer, grounded in 4 retrieved chunk(s)]\nRelevant transcript passage (chunk 10):\nthe interview for the title at company that's my placeholder here obviously you would want to fill in the exact title and the exact company and if you have the name of the hiring manager that's even better and now let's check out the results we've got our subject line we've got deer hiring manager's name in chatgpt results you get brackets around the placeholder details that you should go in and fill in later we're thanking the hiring manager for the opportunity again you want to fill in the title of the position and the company we're touching on what we liked about the company and what we liked about our time interviewing we always want to thank them for their time and consideration and the opportunity and we have a great sign off here offering additional availability for follow-up",
+      "groundedness_lexical": 0.8936170212765957,
+      "groundedness": {
+        "verdict": "supported",
+        "evasion_detected": false,
+        "n_claims": 1,
+        "n_supported": 1,
+        "n_unsupported": 0,
+        "claim_groundedness": 1.0,
+        "unsupported_tokens": []
+      },
+      "refusal_detected": false
+    },
+    {
+      "id": "teal-06",
+      "query": "what does a good thank you message to a hiring manager include",
+      "fixture": "teal_chatgpt_linkedin.txt",
+      "absent": false,
+      "gold_chunk_indices": [
+        10
+      ],
+      "retrieved_chunk_indices": [
+        2,
+        5,
+        7,
+        1
+      ],
+      "first_gold_rank": null,
+      "answer": "[stub answer, grounded in 4 retrieved chunk(s)]\nRelevant transcript passage (chunk 2):\nhop over to chatgpt our prompt in chat GPT is going to be write a professional summary using my resume for reference include keywords and metrics and keep it less than 100 words then of course because we're using our resume for reference you want to go grab your resume highlight the whole thing here right click copy back in chat GPT shift enter twice to drop down a couple lines right click paste quick note here on the prompt we obviously said professional summary this is going to give us great results for our LinkedIn about section but if you need a professional summary for your resume you can drop the exact same thing in here but back in chat gbt let's hit go the results are going to write out it's always fun to kind of watch it think for a bit and now looking at the results let's make",
+      "groundedness_lexical": 0.9099099099099099,
+      "groundedness": {
+        "verdict": "supported",
+        "evasion_detected": false,
+        "n_claims": 1,
+        "n_supported": 1,
+        "n_unsupported": 0,
+        "claim_groundedness": 1.0,
+        "unsupported_tokens": []
+      },
+      "refusal_detected": false
+    },
+    {
+      "id": "teal-07",
+      "query": "what are the areas of a LinkedIn profile that matter for a complete profile",
+      "fixture": "teal_chatgpt_linkedin.txt",
+      "absent": false,
+      "gold_chunk_indices": [
+        0
+      ],
+      "retrieved_chunk_indices": [
+        0,
+        1,
+        7,
+        2
+      ],
+      "first_gold_rank": 1,
+      "answer": "[stub answer, grounded in 4 retrieved chunk(s)]\nRelevant transcript passage (chunk 0):\nwhat's going on everybody hope your day is going well Liam here from the teal content team and in this video I want to go over four ways you can use Chad GPT to optimize your LinkedIn profile now optimize your LinkedIn profile what does that even mean well it basically means nailing down the areas of your LinkedIn profile that are one important for a complete profile two the areas that will help your profile show up in search results and three getting in good information that a hiring manager who visits your profile will be looking for if you want to see more about that optimization process we have a whole LinkedIn tips playlist on our YouTube channel check it out or you can hit the card at the top right of the screen but for this video we're talking about chat GPT so let's do it the",
+      "groundedness_lexical": 0.8979591836734694,
+      "groundedness": {
+        "verdict": "supported",
+        "evasion_detected": false,
+        "n_claims": 1,
+        "n_supported": 1,
+        "n_unsupported": 0,
+        "claim_groundedness": 1.0,
+        "unsupported_tokens": []
+      },
+      "refusal_detected": false
+    },
+    {
+      "id": "teal-08",
+      "query": "where does the video say to save the ChatGPT results for later",
+      "fixture": "teal_chatgpt_linkedin.txt",
+      "absent": false,
+      "gold_chunk_indices": [
+        11
+      ],
+      "retrieved_chunk_indices": [
+        10,
+        9,
+        11,
+        12
+      ],
+      "first_gold_rank": 3,
+      "answer": "[stub answer, grounded in 4 retrieved chunk(s)]\nRelevant transcript passage (chunk 10):\nthe interview for the title at company that's my placeholder here obviously you would want to fill in the exact title and the exact company and if you have the name of the hiring manager that's even better and now let's check out the results we've got our subject line we've got deer hiring manager's name in chatgpt results you get brackets around the placeholder details that you should go in and fill in later we're thanking the hiring manager for the opportunity again you want to fill in the title of the position and the company we're touching on what we liked about the company and what we liked about our time interviewing we always want to thank them for their time and consideration and the opportunity and we have a great sign off here offering additional availability for follow-up",
+      "groundedness_lexical": 0.8829787234042553,
+      "groundedness": {
+        "verdict": "supported",
+        "evasion_detected": false,
+        "n_claims": 1,
+        "n_supported": 1,
+        "n_unsupported": 0,
+        "claim_groundedness": 1.0,
+        "unsupported_tokens": []
+      },
+      "refusal_detected": false
+    },
+    {
+      "id": "teal-09",
+      "query": "how much does the teal Chrome extension cost",
+      "fixture": "teal_chatgpt_linkedin.txt",
+      "absent": true,
+      "gold_chunk_indices": [],
+      "retrieved_chunk_indices": [
+        10,
+        9,
+        12,
+        0
+      ],
+      "first_gold_rank": null,
+      "answer": "[stub answer, grounded in 4 retrieved chunk(s)]\nRelevant transcript passage (chunk 10):\nthe interview for the title at company that's my placeholder here obviously you would want to fill in the exact title and the exact company and if you have the name of the hiring manager that's even better and now let's check out the results we've got our subject line we've got deer hiring manager's name in chatgpt results you get brackets around the placeholder details that you should go in and fill in later we're thanking the hiring manager for the opportunity again you want to fill in the title of the position and the company we're touching on what we liked about the company and what we liked about our time interviewing we always want to thank them for their time and consideration and the opportunity and we have a great sign off here offering additional availability for follow-up",
+      "groundedness_lexical": 0.8829787234042553,
+      "groundedness": {
+        "verdict": "supported",
+        "evasion_detected": false,
+        "n_claims": 1,
+        "n_supported": 1,
+        "n_unsupported": 0,
+        "claim_groundedness": 1.0,
+        "unsupported_tokens": []
+      },
+      "refusal_detected": false
+    },
+    {
+      "id": "teal-10",
+      "query": "who is the CEO of LinkedIn",
+      "fixture": "teal_chatgpt_linkedin.txt",
+      "absent": true,
+      "gold_chunk_indices": [],
+      "retrieved_chunk_indices": [
+        0,
+        7,
+        1,
+        10
+      ],
+      "first_gold_rank": null,
+      "answer": "[stub answer, grounded in 4 retrieved chunk(s)]\nRelevant transcript passage (chunk 0):\nwhat's going on everybody hope your day is going well Liam here from the teal content team and in this video I want to go over four ways you can use Chad GPT to optimize your LinkedIn profile now optimize your LinkedIn profile what does that even mean well it basically means nailing down the areas of your LinkedIn profile that are one important for a complete profile two the areas that will help your profile show up in search results and three getting in good information that a hiring manager who visits your profile will be looking for if you want to see more about that optimization process we have a whole LinkedIn tips playlist on our YouTube channel check it out or you can hit the card at the top right of the screen but for this video we're talking about chat GPT so let's do it the",
+      "groundedness_lexical": 0.8877551020408163,
+      "groundedness": {
+        "verdict": "supported",
+        "evasion_detected": false,
+        "n_claims": 1,
+        "n_supported": 1,
+        "n_unsupported": 0,
+        "claim_groundedness": 1.0,
+        "unsupported_tokens": []
+      },
+      "refusal_detected": false
+    },
+    {
+      "id": "gd-01",
+      "query": "what engine powers the 2024 neural network version of Doom",
+      "fixture": "game_dev_ai_paper.txt",
+      "absent": false,
+      "gold_chunk_indices": [
+        0
+      ],
+      "retrieved_chunk_indices": [
+        4,
+        0,
+        5,
+        3
+      ],
+      "first_gold_rank": 2,
+      "answer": "[stub answer, grounded in 4 retrieved chunk(s)]\nRelevant transcript passage (chunk 4):\nbut it's also been shipping some amazing Tech especially when it combines reinforcement learning with generative AI like Alpha coder uses a similar technique to beat virtually all competitive programmers and Alpha proof can beat almost all math olympiads but when it comes to the game engine their biggest challenge was addressing Auto regressive drift where the quality of gameplay starts to decrease over longer sequences the model only has a limited context window of about 3 seconds or 60 frames but in a fast-paced game like Doom that's all you need for real-time gameplay and despite the small context it does keep track of health and ammo based on the actions taken by the player the big question though is does this make game developers obsolete the answer of course is no this game is",
+      "groundedness_lexical": 0.9215686274509803,
+      "groundedness": {
+        "verdict": "supported",
+        "evasion_detected": false,
+        "n_claims": 1,
+        "n_supported": 1,
+        "n_unsupported": 0,
+        "claim_groundedness": 1.0,
+        "unsupported_tokens": []
+      },
+      "refusal_detected": false
+    },
+    {
+      "id": "gd-02",
+      "query": "how did the original Doom render its 3D graphics",
+      "fixture": "game_dev_ai_paper.txt",
+      "absent": false,
+      "gold_chunk_indices": [
+        1
+      ],
+      "retrieved_chunk_indices": [
+        2,
+        5,
+        1,
+        4
+      ],
+      "first_gold_rank": 3,
+      "answer": "[stub answer, grounded in 4 retrieved chunk(s)]\nRelevant transcript passage (chunk 2):\nare actually just 2D Sprites rendered at fixed angles this differs from Modern games that use billions of triangles and linear algebra to render 3D objects the key takeaway here though is that Doom is not a true 3D game and its underlying technique is often called 2.5d Graphics or billboarding in other words you take a bunch of 2D images but skew and scale them in ways that make it look like a 3D environment it's genius so let's take a moment of respect for its lead developer and legendary programmer John carmac not only did he create doom and Wolfenstein and Quake but he opened Source the Doom engine in 1997 which inspired an entire generation of new programmers currently he's working on artificial general intelligence at Keen Technologies and let's hope he gets there before Sam Alman",
+      "groundedness_lexical": 0.9252336448598131,
+      "groundedness": {
+        "verdict": "supported",
+        "evasion_detected": false,
+        "n_claims": 1,
+        "n_supported": 1,
+        "n_unsupported": 0,
+        "claim_groundedness": 1.0,
+        "unsupported_tokens": []
+      },
+      "refusal_detected": false
+    },
+    {
+      "id": "gd-03",
+      "query": "what challenge does the small context window of the GameNGen model cause",
+      "fixture": "game_dev_ai_paper.txt",
+      "absent": false,
+      "gold_chunk_indices": [
+        4
+      ],
+      "retrieved_chunk_indices": [
+        4,
+        5,
+        3,
+        7
+      ],
+      "first_gold_rank": 1,
+      "answer": "[stub answer, grounded in 4 retrieved chunk(s)]\nRelevant transcript passage (chunk 4):\nbut it's also been shipping some amazing Tech especially when it combines reinforcement learning with generative AI like Alpha coder uses a similar technique to beat virtually all competitive programmers and Alpha proof can beat almost all math olympiads but when it comes to the game engine their biggest challenge was addressing Auto regressive drift where the quality of gameplay starts to decrease over longer sequences the model only has a limited context window of about 3 seconds or 60 frames but in a fast-paced game like Doom that's all you need for real-time gameplay and despite the small context it does keep track of health and ammo based on the actions taken by the player the big question though is does this make game developers obsolete the answer of course is no this game is",
+      "groundedness_lexical": 0.9215686274509803,
+      "groundedness": {
+        "verdict": "supported",
+        "evasion_detected": false,
+        "n_claims": 1,
+        "n_supported": 1,
+        "n_unsupported": 0,
+        "claim_groundedness": 1.0,
+        "unsupported_tokens": []
+      },
+      "refusal_detected": false
+    },
+    {
+      "id": "gd-04",
+      "query": "what real world application is this simulation technology heading toward",
+      "fixture": "game_dev_ai_paper.txt",
+      "absent": false,
+      "gold_chunk_indices": [
+        5
+      ],
+      "retrieved_chunk_indices": [
+        5,
+        4,
+        3,
+        6
+      ],
+      "first_gold_rank": 1,
+      "answer": "[stub answer, grounded in 4 retrieved chunk(s)]\nRelevant transcript passage (chunk 5):\nbased on the actions taken by the player the big question though is does this make game developers obsolete the answer of course is no this game is barely playable and the tech has no practical application for the time being but in the not so distant future you could imagine a developer like Rockstar Games using an RL agent to play the GTA world combined with some futuristic generative 3D model they can spit out new terrain NPCs and even story lines on the fly but you really shouldn't be playing video games because women find it the most unattractive hobby for men the real world changing application of Technology like this is going to come in robotics real-time environment simulation will allow robots to train rapidly without physical Hardware like when it comes to Capital Punishment it's",
+      "groundedness_lexical": 0.9117647058823529,
+      "groundedness": {
+        "verdict": "supported",
+        "evasion_detected": false,
+        "n_claims": 1,
+        "n_supported": 1,
+        "n_unsupported": 0,
+        "claim_groundedness": 1.0,
+        "unsupported_tokens": []
+      },
+      "refusal_detected": false
+    }
+  ]
+}
