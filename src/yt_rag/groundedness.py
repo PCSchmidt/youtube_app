@@ -310,8 +310,13 @@ def run_groundedness_set(path: str | Path | None = None) -> dict:
             }
         )
     n = len(per_case)
+    used = Path(path) if path else DEFAULT_GROUNDEDNESS_SET
+    try:
+        used = used.relative_to(REPO_ROOT)  # keep run records portable
+    except ValueError:
+        pass
     return {
-        "path": str(Path(path) if path else DEFAULT_GROUNDEDNESS_SET),
+        "path": used.as_posix(),
         "n_cases": n,
         "n_agree": n_agree,
         "agreement": (n_agree / n) if n else None,
