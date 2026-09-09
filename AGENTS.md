@@ -10,9 +10,17 @@ This is a personal portfolio project, not production work. It must be honest, ri
 
 ## Current state (as of Sep 2026)
 
-- Dormant since Sep 2024.
-- Existing functionality: transcript ingestion from a YouTube URL, summary generation, and chat over the transcript.
-- Known gap: the app is described as RAG but has no real retrieval layer. This must be fixed with genuine chunking, embeddings, vector search, and top-k retrieval.
+- Redesigned and complete: real RAG pipeline (chunk -> embed -> FAISS -> top-k
+  -> grounded generation), recorded retrieval/groundedness eval numbers,
+  versioned bundles with refresh/rollback, FastAPI serving, React workspace UI
+  with DEMO mode, Prometheus/Grafana local stack, 134 offline tests green.
+- Published on GitHub (PCSchmidt/youtube_app; local branch is `main`,
+  tracking origin/main - rename legacy `master` checkouts with
+  `git branch -m master main`).
+- Deploy target is deliberately local Docker Compose only (multi-GB image
+  with torch; no public endpoint, auth, or TLS claims - see README
+  "Deploy target decision").
+- The known "no real retrieval layer" gap from the legacy app is CLOSED.
 
 ## Non-negotiable requirements
 

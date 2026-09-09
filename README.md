@@ -1,5 +1,124 @@
 # yt_rag — RAG over YouTube transcripts
 
+**Deploy target: deliberately local-only** (Docker Compose; a public endpoint
+was declined — see [Deploy target decision](#deploy-target-decision-stage-4)).
+A reviewer clones this repo and runs everything offline.
+
+## What is this? (plain-language overview)
+
+This app answers questions about a YouTube video using **retrieval-augmented
+generation (RAG)** done properly: instead of dumping a whole transcript into
+an LLM and hoping, it fetches the transcript, splits it into overlapping
+chunks, embeds the chunks into vectors, finds the few chunks that actually
+relate to your question, and lets the LLM write its answer **from those
+chunks only**. The result: answers that point at the exact part of the video
+they came from, and an honest "the transcript doesn't say that" when the
+information isn't there.
+
+Two things make this repo more than a RAG demo:
+
+- **Evaluation with recorded numbers.** A hand-labeled 14-item eval set
+  measures retrieval quality (hit rate@4, MRR@4) and answer groundedness for
+  two embedders, with every run logged and reproducible via `make eval`.
+- **The full maintain loop.** Model/index bundles are versioned with
+  manifests; a refresh that produces a worse index can be rolled back with one
+  command; an executed incident write-up (wrong-fixture refresh, rollback,
+  failed-identity-validation) lives in `experiments/incident.md`.
+
+A React workspace UI ships with a clearly-labelled **DEMO mode** so the
+interface is demonstrable with no backend, no model download, and no network.
+
+| | |
+| --- | --- |
+| Pipeline | ingest → chunk (800/150 chars) → embed (all-MiniLM-L6-v2, 384-dim) → FAISS exact search → top-4 → generate from retrieved chunks only |
+| Embeddings | `sentence-transformers/all-MiniLM-L6-v2` in production; deterministic `HashEmbedder` keeps tests fully offline |
+| Generation | swappable OpenAI-compatible provider; `StubProvider` extractive fallback for offline runs |
+| Eval results | hit rate@4 0.917, MRR@4 0.653 (real embedder) on the hand-labeled set — pre-tuning baselines, honestly labeled as such |
+| Groundedness | deterministic lexical check (citations must appear in retrieved chunks) — explicitly NOT semantic truth |
+| Backend tests | 134 passing, fully offline (`make test`) |
+| UI tests | offline vitest suite with mocked fetch (`make ui-test`) |
+| Deploy target | local Docker Compose only (image is multi-GB with torch — public hosting declined) |
+| Honest scope | portfolio project: no auth, no TLS, no multi-user serving |
+
+## Architecture at a glance
+
+```mermaid
+flowchart TD
+    B["Browser: React workspace (ui/)<br>DEMO mode + evidence panels"] --> F["FastAPI (app.py)<br>POST /chat · GET /health<br>GET /metrics · /metrics/prometheus"]
+    F --> R["Retriever (retriever.py)<br>top-4 cosine on normalized vectors"]
+    R --> V["Vector store (vectorstore.py)<br>FAISS IndexFlatIP (exact)"]
+    V --> E["Embeddings (embeddings.py)<br>all-MiniLM-L6-v2 · 384-dim<br>HashEmbedder for offline"]
+    E --> C["Chunking (chunk.py)<br>800 chars / 150 overlap, word boundaries"]
+    C --> I["Ingest (ingest.py)<br>YouTube URL or cached .txt fixture"]
+    R --> G["Generation (generation.py)<br>prompt = retrieved chunks ONLY<br>StubProvider or OpenAI-compatible LLM"]
+    G --> GR["Groundedness check (groundedness.py)<br>lexical citation verification"]
+    F --> O["observability.py<br>JSON logs + Prometheus exposition"]
+```
+
+Where things live:
+
+| Path | What it is |
+| --- | --- |
+| `src/yt_rag/ingest.py` | Transcript fetching (youtube-transcript-api) with typed failures |
+| `src/yt_rag/chunk.py` | Sliding-window chunking with rationale-documented sizes |
+| `src/yt_rag/embeddings.py` | Pinned real embedder + deterministic offline HashEmbedder |
+| `src/yt_rag/vectorstore.py` | FAISS flat index + chunk metadata, save/load to `artifacts/` |
+| `src/yt_rag/retriever.py` | Top-k retrieval (cosine on L2-normalized vectors) |
+| `src/yt_rag/generation.py` | Prompt assembly + swappable providers (stub / OpenAI-compatible) |
+| `src/yt_rag/groundedness.py` | Lexical groundedness evaluation (deterministic, not semantic) |
+| `src/yt_rag/eval.py` | The hand-labeled eval-set runner behind `make eval` |
+| `src/yt_rag/bundle.py`, `maintain.py` | Versioned index/model bundles, refresh + rollback |
+| `src/yt_rag/app.py` | FastAPI serving layer (the API is unchanged since Stage 1) |
+| `src/yt_rag/observability.py` | JSON logs + in-process counters + Prometheus text |
+| `tests/` | 134 offline tests (fixtures, no network, no model downloads) |
+| `ui/` | React + Vite + TypeScript workspace (evidence/answer panels, DEMO mode, recharts) |
+| `experiments/` | Baseline log, executed incident write-up, Phase 7 runtime evidence |
+| `artifacts/` | Versioned bundles + the `current` pointer (gitignored contents) |
+| `provisioning/`, `dashboards/`, `prometheus.yml` | Local Prometheus + Grafana stack |
+| `INVENTORY.md` | Historical Stage 0 audit of the pre-refactor app |
+| `ROADMAP.md` | The stage-by-stage build story |
+
+## Quickstart (local, offline)
+
+```bash
+git clone https://github.com/PCSchmidt/youtube_app
+cd youtube_app
+make setup && make test    # pinned venv, then 134 offline tests + ruff
+
+make eval                  # recorded eval numbers (reproducible, offline)
+
+# HTTP service + local Prometheus/Grafana (Docker Desktop required):
+docker compose up --build -d
+curl -s -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://www.youtube.com/watch?v=<id>", "question": "what is this video about?"}'
+# Grafana: http://localhost:3001 (admin/admin) · Prometheus: http://localhost:9091
+
+# React workspace UI:
+make ui                    # dev server, proxies /chat to localhost:8000
+```
+
+## Approach: why it is built this way
+
+- **Real retrieval, not an LLM call over the whole transcript.** The redesign
+  exists precisely because the previous app skipped retrieval. Generation
+  never sees the full transcript - only the numbered retrieved chunks.
+- **Offline-by-default is a hard rule.** Tests use a deterministic hash
+  embedder and a stub generation provider so `make test` never touches the
+  network and is exactly reproducible; the real pinned embedder is a CLI flag
+  away, never a hidden test dependency.
+- **Numbers over vibes.** Retrieval quality and groundedness are measured on
+  a labeled set with recorded runs (`experiments/baseline_log.md`), and the
+  README calls the groundedness check what it is: a lexical heuristic, not
+  semantic truth.
+- **Bundles are versioned; mistakes are reversible.** Every index/model
+  artifact carries a manifest; refresh and rollback are pointer moves with
+  identity validation, and the executed incident shows both working -
+  including a validation failure leaving the pointer untouched.
+- **Boring, recognized tooling.** FAISS, sentence-transformers, FastAPI,
+  React - the defaults a hiring manager has seen in real RAG systems, pinned
+  by name and version.
+
 ## Motivation
 
 Turn the old "YouTube Transcript Analyzer" into a portfolio-grade, full-lifecycle

@@ -145,7 +145,9 @@ does not touch either.
 
 ## Portfolio presentation
 
-- [ ] README tells the full lifecycle story with real numbers.
+- [x] README tells the full lifecycle story with real numbers (plain-language
+  overview + architecture map added post-publication; eval numbers and the
+  lexical-groundedness caveat stay stated exactly as measured).
 - [ ] Link the repo from `pcschmidt.github.io`.
 - [ ] Prepare a 3-sentence interview arc per lifecycle stage.
 
